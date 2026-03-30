@@ -59,8 +59,9 @@ export default function App() {
   const [zoneModal,      setZoneModal]      = useState(null)
   const [scenarioActive, setScenarioActive] = useState(false)
   const [showLanding,    setShowLanding]    = useState(true)
-  const wsRef       = useRef(null)
-  const prevModeRef = useRef('NORMAL')
+  const wsRef         = useRef(null)
+  const prevModeRef   = useRef('NORMAL')
+  const firstConnRef  = useRef(true)
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', darkMode ? 'dark' : 'light')
@@ -112,7 +113,14 @@ export default function App() {
     const connect = () => {
       ws = new WebSocket(WS_URL)
       wsRef.current = ws
-      ws.onopen    = () => { setWsConnected(true);  addFeed('info', 'TARE', 'System online — WebSocket connected.') }
+      ws.onopen    = () => {
+        setWsConnected(true)
+        addFeed('info', 'TARE', 'System online — WebSocket connected.')
+        if (firstConnRef.current) {
+          firstConnRef.current = false
+          fetch('/reset', { method: 'POST' })
+        }
+      }
       ws.onclose   = () => { setWsConnected(false); timer = setTimeout(connect, 3000) }
       ws.onerror   = () => ws.close()
       ws.onmessage = (e) => { try { handleMsg(JSON.parse(e.data)) } catch {} }
