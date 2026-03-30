@@ -266,40 +266,40 @@
 .lp-monitor-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 8px;
+  gap: 12px;
 }
 
 .lp-monitor-item {
   background: #060d18;
   border: 1px solid #0d1f30;
-  border-radius: 8px;
-  padding: 16px 18px;
+  border-radius: 10px;
+  padding: 22px 22px;
   display: flex;
   align-items: flex-start;
-  gap: 14px;
+  gap: 16px;
   text-align: left;
   transition: border-color 0.3s;
 }
 .lp-monitor-item:hover { border-color: #1a3a52; }
 
 .lp-monitor-icon {
-  font-size: 20px;
+  font-size: 26px;
   flex-shrink: 0;
   margin-top: 2px;
 }
-.lp-monitor-text { display: flex; flex-direction: column; gap: 3px; }
+.lp-monitor-text { display: flex; flex-direction: column; gap: 6px; }
 .lp-monitor-name {
   font-family: 'JetBrains Mono', monospace;
-  font-size: 11px;
+  font-size: 14px;
   font-weight: 700;
   color: #8ab4c8;
   letter-spacing: 0.06em;
 }
 .lp-monitor-desc {
   font-family: 'JetBrains Mono', monospace;
-  font-size: 10px;
+  font-size: 12px;
   color: #2a5570;
-  line-height: 1.55;
+  line-height: 1.6;
 }
 
 /* ── Stats ─────────────────────────────────────────────────────────────────── */
