@@ -48,10 +48,10 @@ const ZONE_CONFIG = {
       { pos:[51.503,-0.183], id:'FDR-301' },
     ],
     infrastructure: [
-      { pos:[51.515,-0.205], icon:'🏭', label:'Manufacturing Plant', color:'#00d4ff' },
-      { pos:[51.507,-0.175], icon:'🏭', label:'Industrial Facility',  color:'#00d4ff' },
-      { pos:[51.499,-0.194], icon:'📦', label:'Logistics Hub',        color:'#ff9a3c' },
-      { pos:[51.495,-0.205], icon:'🏗', label:'Construction Depot',   color:'#6b8fa3' },
+      { pos:[51.508,-0.168], icon:'🏭', label:'Manufacturing Plant', color:'#00d4ff' },
+      { pos:[51.496,-0.170], icon:'🏭', label:'Industrial Facility',  color:'#00d4ff' },
+      { pos:[51.494,-0.188], icon:'📦', label:'Logistics Hub',        color:'#ff9a3c' },
+      { pos:[51.496,-0.206], icon:'🏗', label:'Construction Depot',   color:'#6b8fa3' },
     ],
   },
 }
