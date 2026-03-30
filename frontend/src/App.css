@@ -1993,9 +1993,9 @@ html, body {
   font-family: var(--font-mono);
   font-size: 0.65rem;
   color: var(--text-secondary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: normal;
+  word-break: break-word;
+  line-height: 1.4;
 }
 .ls-dim { color: var(--text-dim); }
 
