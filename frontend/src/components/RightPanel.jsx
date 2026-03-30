@@ -74,7 +74,7 @@ export default function RightPanel({
           <span className="ls-stat-chip ls-sc-total"><b>{stats.total ?? 0}</b><span>CMDS</span></span>
           <span className="ls-stat-chip ls-sc-allow"><b>{stats.allowed ?? 0}</b><span>ALLOW</span></span>
           <span className="ls-stat-chip ls-sc-deny" ><b>{stats.denied ?? 0}</b><span>DENY</span></span>
-          <span className="ls-stat-chip ls-sc-frz"  ><b>{stats.freeze_events ?? 0}</b><span>PRZ</span></span>
+          <span className="ls-stat-chip ls-sc-frz"  ><b>{stats.freeze_events ?? 0}</b><span>FRZ</span></span>
         </div>
       )}
 
