@@ -1897,29 +1897,29 @@ html, body {
 .ls-source-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 4px;
-  padding: 8px 10px 4px;
+  gap: 6px;
+  padding: 10px 12px 6px;
   flex-shrink: 0;
 }
 
 .ls-chip {
   display: flex;
   align-items: center;
-  gap: 4px;
-  padding: 4px 6px;
-  border-radius: 6px;
+  gap: 6px;
+  padding: 8px 10px;
+  border-radius: 7px;
   border: 1px solid var(--border-dim);
   background: var(--bg-card);
   font-family: var(--font-mono);
-  font-size: 0.65rem;
+  font-size: 0.72rem;
   font-weight: 700;
   letter-spacing: 0.05em;
   white-space: nowrap;
   overflow: hidden;
 }
-.ls-icon  { font-size: 0.8rem; flex-shrink: 0; }
+.ls-icon  { font-size: 0.95rem; flex-shrink: 0; }
 .ls-label { color: var(--text-secondary); flex: 1; overflow: hidden; text-overflow: ellipsis; }
-.ls-num   { color: var(--text-primary); font-weight: 800; margin-left: auto; font-size: 0.75rem; }
+.ls-num   { color: var(--text-primary); font-weight: 800; margin-left: auto; font-size: 0.9rem; }
 
 .ls-gateway { border-color: rgba(0,212,255,0.3); }
 .ls-gateway .ls-num { color: var(--accent-blue); }
@@ -1938,22 +1938,22 @@ html, body {
 .ls-session-stats {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 4px;
-  padding: 4px 10px;
+  gap: 6px;
+  padding: 6px 12px;
   flex-shrink: 0;
 }
 .ls-stat-chip {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 4px 2px;
-  border-radius: 6px;
+  padding: 8px 4px;
+  border-radius: 7px;
   border: 1px solid var(--border-dim);
   background: var(--bg-card);
   font-family: var(--font-mono);
 }
-.ls-stat-chip b    { font-size: 1.1rem; font-weight: 800; line-height: 1.1; }
-.ls-stat-chip span { font-size: 0.5rem; color: var(--text-secondary); letter-spacing: 0.08em; margin-top: 1px; }
+.ls-stat-chip b    { font-size: 1.3rem; font-weight: 800; line-height: 1.1; }
+.ls-stat-chip span { font-size: 0.58rem; color: var(--text-secondary); letter-spacing: 0.08em; margin-top: 2px; }
 .ls-sc-total { border-color: var(--border-mid); }
 .ls-sc-total b { color: var(--text-primary); }
 .ls-sc-allow b { color: var(--accent-green); }
@@ -1962,7 +1962,7 @@ html, body {
 
 /* Latest event */
 .ls-latest-wrap {
-  padding: 7px 12px;
+  padding: 10px 14px;
   flex-shrink: 0;
   border-top: 1px solid var(--border-dim);
   border-bottom: 1px solid var(--border-dim);
@@ -1985,18 +1985,18 @@ html, body {
 }
 .ls-latest-src {
   font-family: var(--font-mono);
-  font-size: 0.65rem;
+  font-size: 0.75rem;
   font-weight: 700;
   color: var(--accent-blue);
   text-transform: uppercase;
 }
 .ls-latest-msg {
   font-family: var(--font-mono);
-  font-size: 0.65rem;
+  font-size: 0.72rem;
   color: var(--text-secondary);
   white-space: normal;
   word-break: break-word;
-  line-height: 1.4;
+  line-height: 1.5;
 }
 .ls-dim { color: var(--text-dim); }
 
