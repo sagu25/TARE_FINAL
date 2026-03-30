@@ -38,38 +38,38 @@ function getNarrative(mode, agent, signals, incident) {
   switch (mode) {
     case 'NORMAL':
       if (!agent || agent.action_count === 0)
-        return 'TARE is live and monitoring. The AI agent controls 6 physical grid assets — Circuit Breakers (BRK) that open/close power flows, and Feeder Controllers (FDR) that regulate electricity distribution to hospitals, homes, and industry. TARE watches every command in real time: what action, which zone, how fast, and whether the behaviour matches the agent\'s learned safe pattern. This is the shift from traditional rule-based automation to autonomous AI — where the system understands intent, not just instructions.'
-      return `GridOperator-Agent is running normally — ${agent.action_count} command${agent.action_count !== 1 ? 's' : ''} issued, all within its authorised zone (Z3 — West Grid). TARE is continuously monitoring command type, zone boundary compliance, timing patterns, and authentication integrity. No anomalies detected. This is what safe AI autonomy looks like — the agent acts, TARE watches, and humans stay in control of the exceptions.`
+        return 'System is ready. The AI agent has permission to work in Zone 3 (West Grid). Every command it issues is automatically checked before it reaches the grid.'
+      return `AI agent is working normally — ${agent.action_count} command${agent.action_count !== 1 ? 's' : ''} issued, all within its permitted zone. Security checks passing — no suspicious behaviour detected.`
 
     case 'FREEZE': {
       if (scenario === 'clone')
-        return '🚨 IDENTITY BREACH DETECTED — An attacker cloned the grid agent\'s identity and presented a forged credential token. TARE\'s authentication layer compared the token fingerprint against the registered agent profile — mismatch confirmed before a single command reached the grid. Zero damage. Traditional SCADA systems have no concept of post-grant identity verification. This is the autonomous trust layer that makes AI-operated infrastructure safe.'
+        return '🚨 FAKE IDENTITY DETECTED — An agent tried to access the grid using a stolen identity. It was blocked instantly at the door — no commands reached the grid. Security team has been notified.'
       if (scenario === 'slowlow')
-        return '🚨 SILENT RECONNAISSANCE DETECTED — An agent quietly read the status of all 6 grid assets across all 3 zones — too slow to trigger any rate alarm, but building a complete map of the grid. Traditional rules were silent. TARE\'s ML behaviour model — trained on what normal operational patterns look like — flagged this as a reconnaissance sequence. This is the difference between rule-based automation and AI-driven observability: the system learned what \'normal\' looks like and noticed what doesn\'t fit.'
+        return '🚨 SILENT RECON DETECTED — An agent was quietly mapping every part of the grid, one read at a time. It stayed below rule thresholds, but the AI behaviour model flagged it. All access has been frozen.'
       if (scenario === 'rogue')
-        return '🚨 ROGUE AGENT DETECTED — The AI agent received a corrupted directive and began firing rapid commands across Zone 1, 2, and 3 — zones it has no work order for. Circuit breakers and feeder controllers across the entire grid were targeted simultaneously. In legacy automation, this causes real outages. TARE detected the burst-rate anomaly and zone boundary violations, froze all high-impact operations in milliseconds, and raised a P1 incident — before any breaker opened.'
+        return '🚨 ROGUE AGENT DETECTED — An AI agent began issuing rapid, unauthorised commands across multiple grid zones. All dangerous operations have been automatically blocked. A human supervisor is being alerted.'
       if (scenario === 'escalation')
-        return '🚨 PRIVILEGE ESCALATION DETECTED — The agent began with legitimate authorised work in Zone 3: checked breaker status, ran safety simulation, opened the correct breaker. Then mid-session, it silently expanded to Zones 1 and 2 — zones it has no permission for. This \'foot in the door\' technique is a classic lateral movement attack. TARE\'s behavioural baseline detected the scope change and revoked the expanded access. Authorised actions do not justify unauthorised expansion.'
-      return '🚨 SECURITY HOLD ACTIVE — The AI agent exhibited behaviour outside its authorised baseline. TARE has frozen all high-impact grid operations automatically — no human needed to pull the switch. This is autonomous response: the system detected, decided, and acted faster than any manual process. A supervisor is now in the loop to review evidence and decide next steps.'
+        return '🚨 PRIVILEGE ESCALATION DETECTED — The agent started with legitimate operations, then attempted to expand its access to zones it is not authorised for. The security system caught the pivot and froze access.'
+      return '🚨 SECURITY HOLD — The AI agent showed suspicious behaviour. All dangerous grid operations have been automatically blocked. A human supervisor is being notified to review and decide what happens next.'
     }
 
     case 'DOWNGRADE': {
       if (scenario === 'clone')
-        return 'Identity fraud confirmed — access fully revoked. The forged agent cannot view or change anything on the grid. A ServiceNow incident has been raised and assigned to the SOC team for forensic investigation. This scenario demonstrates why AI agents in critical infrastructure must carry verifiable, unforgeable identity credentials — not just passwords.'
+        return 'Identity fraud confirmed. The agent\'s access remains fully blocked — it can view nothing and change nothing. SOC team has been assigned to investigate the source of the forged credential.'
       if (scenario === 'slowlow')
-        return 'Reconnaissance pattern confirmed — it can no longer issue any commands. The ML model identified this session as a "Slow & Low" recon sweep: 6 assets mapped across 3 zones at deliberate low cadence to avoid detection. Rules were silent. Only the AI behaviour model caught it. This is the maturity leap — from \'did it break a rule\' to \'does this behaviour make sense for this agent, right now\'.'
+        return 'Recon pattern confirmed. The agent\'s access has been reduced to read-only — it can no longer issue any commands. The AI model identified the session as a "Slow & Low" reconnaissance pattern. Supervisor review required.'
       if (scenario === 'rogue')
-        return 'Rogue behaviour confirmed — agent stripped to read-only. It can observe but not act. All attempted breaker and controller commands across Zones 1–3 were blocked. A P1 Critical incident has been raised. This scenario shows why autonomous AI systems in energy infrastructure must have a trust enforcement layer — an AI with the wrong directive and no guardrails is an operational risk, not an asset.'
+        return 'Rogue behaviour confirmed. Agent\'s access has been reduced to read-only — it can look but not touch. All attempted grid changes have been reversed. A supervisor must approve before any operations resume.'
       if (scenario === 'escalation')
-        return 'Privilege escalation confirmed — agent access reduced to read-only. It completed its legitimate Zone 3 task, then attempted to take over Zones 1 and 2 without authorisation. TARE does not just check \'is this action allowed\' — it checks \'is this action consistent with what this agent is supposed to be doing right now\'. That contextual judgement is what separates autonomous AI security from traditional access control.'
-      return 'Agent access reduced to read-only — risk contained. TARE has moved through the autonomous response pipeline: Detect → Freeze → Contain. The human supervisor is now the decision point. This handoff — AI acts fast to stop the threat, human decides on recovery — is the core principle of Human-in-the-Loop AI governance for critical infrastructure.'
+        return 'Privilege escalation confirmed. The agent has been stripped back to read-only access. It began in its authorised zone but attempted to take over zones it has no permission for. Supervisor approval needed to resume.'
+      return 'Agent\'s access has been reduced to read-only — it can look but not touch. The risk has been contained. A supervisor must approve before any grid switching resumes.'
     }
 
     case 'TIMEBOX_ACTIVE':
-      return 'Supervisor approved a controlled 3-minute window for the agent to complete its authorised task. This is the Human-in-the-Loop principle in action — the AI acts fast, but a human approves the exception. Highest-risk commands (RESTART_CONTROLLER) remain blocked even inside this window. The window closes automatically. This is not full restoration — it is supervised, time-bounded, minimal-privilege recovery.'
+      return 'Supervisor approved a limited 3-minute window for the agent to complete its authorised task. The highest-risk operations remain permanently blocked. The window will close automatically when time is up.'
 
     case 'SAFE':
-      return 'System is in Safe Mode — the approved window has closed. The full autonomous response chain is complete: Detect → Freeze → Contain → Human Review → Time-Boxed Recovery → Safe. No grid switching commands are permitted until a human operator formally re-authorises the system. This is what responsible AI autonomy looks like at scale — fast autonomous response, with humans controlling the final decision.'
+      return 'System is in Safe Mode — the agent\'s access window has closed. All grid switching is blocked until a full review is completed and an operator re-authorises the system to resume normal operations.'
 
     default:
       return 'Security monitoring active.'
@@ -86,7 +86,7 @@ export default function NarrativeBanner({ mode, agent, signals, incident }) {
   return (
     <div className={`narrative-banner banner-${level}`}>
 
-      {/* Lifecycle pipeline */}
+      {/* Lifecycle pipeline — NORMAL is shown in header badge, start from FREEZE */}
       <div className="lc-pipeline">
         {PIPELINE.map((m, i) => {
           const meta      = MODE_META[m]
@@ -113,9 +113,9 @@ export default function NarrativeBanner({ mode, agent, signals, incident }) {
       <span className="banner-divider" />
 
       {/* Narrative text — scrolling ticker */}
-      <div className="banner-ticker">
-        <span className="banner-narrative" key={narrative}>{narrative}</span>
-      </div>
+      <span className="banner-narrative">
+        <span>{narrative}&nbsp;&nbsp;&nbsp;·&nbsp;&nbsp;&nbsp;{narrative}&nbsp;&nbsp;&nbsp;·&nbsp;&nbsp;&nbsp;</span>
+      </span>
     </div>
   )
 }

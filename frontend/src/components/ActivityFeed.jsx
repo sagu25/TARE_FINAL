@@ -9,7 +9,7 @@ const LEVEL_CLS = {
 
 function fmtTs(ts) {
   if (!ts) return ''
-  return ts.slice(11, 19)
+  return new Date(ts).toLocaleTimeString('en-GB', { hour12: false })
 }
 
 export default function ActivityFeed({ feedItems }) {

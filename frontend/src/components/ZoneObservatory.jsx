@@ -1,6 +1,5 @@
 import { ZONE_DISPLAY } from './ZoneInfoModal'
 
-
 // Zone positions — Z3 top-centre, Z2 bottom-left, Z1 bottom-right
 const ZONE_POS = {
   Z3: { cx: 290, cy: 90  },
@@ -62,13 +61,12 @@ export default function ZoneObservatory({ zones, assets, accessLog, mode, darkMo
       </div>
 
       <div className="zone-svg-wrap">
-        <svg viewBox="0 0 580 335" xmlns="http://www.w3.org/2000/svg">
+        <svg viewBox="0 0 580 310" xmlns="http://www.w3.org/2000/svg">
           <defs>
             {/* Background dot-grid */}
             <pattern id="dotGrid" width="20" height="20" patternUnits="userSpaceOnUse">
               <circle cx="1" cy="1" r="0.7" fill={dotColor} opacity="0.6" />
             </pattern>
-
 
             {/* Normal flow gradient */}
             <linearGradient id="flowGrad" x1="0%" y1="0%" x2="100%" y2="0%">
@@ -92,8 +90,8 @@ export default function ZoneObservatory({ zones, assets, accessLog, mode, darkMo
           </defs>
 
           {/* Background */}
-          <rect width="580" height="335" fill={svgBg} />
-          <rect width="580" height="335" fill="url(#dotGrid)" />
+          <rect width="580" height="310" fill={svgBg} />
+          <rect width="580" height="310" fill="url(#dotGrid)" />
 
           {/* Corner tags */}
           <text x="6" y="16" className="zone-lbl" style={{ textAnchor:'start', fontSize:'9px', fill: labelText }}>TARE GRID MAP</text>
@@ -144,7 +142,7 @@ export default function ZoneObservatory({ zones, assets, accessLog, mode, darkMo
                   fill={col.fill}
                   style={{ filter: col.glow, animation: isAttacked ? 'subPulse 0.5s ease-in-out infinite' : zone.health === 'FAULT' ? 'subPulse 2s ease-in-out infinite' : 'none' }}
                 />
-                {/* Zone circle base */}
+                {/* Zone circle */}
                 <circle cx={pos.cx} cy={pos.cy} r={50}
                   fill={zoneFill}
                   stroke={col.stroke}
@@ -152,7 +150,7 @@ export default function ZoneObservatory({ zones, assets, accessLog, mode, darkMo
                   style={{ transition: 'stroke 0.3s' }}
                 />
 
-{/* Zone ID — clickable */}
+                {/* Zone ID — clickable */}
                 <text x={pos.cx} y={pos.cy - 8} className="zone-id-lbl zone-id-clickable" fill={col.text}
                   onClick={() => onZoneClick?.(zone.id)}
                   style={{ cursor: 'pointer' }}>
@@ -160,7 +158,7 @@ export default function ZoneObservatory({ zones, assets, accessLog, mode, darkMo
                 </text>
                 {/* Health */}
                 <text x={pos.cx} y={pos.cy + 12} className="zone-hlth" fill={col.text} opacity={0.8}>
-                  {zone.health === 'FAULT' ? '⚠ FAULT' : isAttacked ? '⚡ BREACHING' : '✓ HEALTHY'}
+                  {zone.health === 'FAULT' ? '⚠ FAULT' : isAttacked ? '⚡ ATTACKED' : '✓ HEALTHY'}
                 </text>
 
                 {/* Attack target badge */}
@@ -183,9 +181,9 @@ export default function ZoneObservatory({ zones, assets, accessLog, mode, darkMo
                   if (!ast) return null
                   const isZ3 = zone.id === 'Z3'
                   const ax = isZ3
-                    ? pos.cx + (i === 0 ? -115 : 115)  // left/right of Z3 — clear of glow ring
+                    ? pos.cx + (i === 0 ? -90 : 90)   // left/right of Z3
                     : pos.cx + (i === 0 ? -36 : 36)    // below Z2/Z1
-                  const ay = isZ3 ? pos.cy : pos.cy + 82
+                  const ay = isZ3 ? pos.cy : pos.cy + 66
                   return (
                     <g key={aid}>
                       <rect x={ax - 33} y={ay - 13} width={66} height={26} rx={4}
