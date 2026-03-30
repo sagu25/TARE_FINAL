@@ -5,6 +5,10 @@ function fmtTs(ts) {
   return new Date(ts).toLocaleTimeString('en-GB', { hour12:false })
 }
 
+function scrollToBottom(ref) {
+  setTimeout(() => ref.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }), 60)
+}
+
 const SUGGESTIONS = [
   'How many agents went rogue?',
   'Any scope creep this session?',
@@ -22,9 +26,7 @@ export default function ChatAssistant({ messages, showApprove, onApprove, onDeny
   const [chatLog,  setChatLog]  = useState([])
   const [loading,  setLoading]  = useState(false)
 
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior:'smooth' })
-  }, [messages, chatLog])
+  useEffect(() => { scrollToBottom(bottomRef) }, [messages, chatLog, loading])
 
   const ask = async (question) => {
     const q = question.trim()
@@ -63,8 +65,8 @@ export default function ChatAssistant({ messages, showApprove, onApprove, onDeny
         {allMsgs.map((m, i) => (
           <div key={i} className={`chat-msg msg-${m.role}`}>
             <div className="msg-meta">
-              <span className="msg-role">
-                {m.role === 'tare' ? 'TARE Engine' : m.role === 'user' ? 'You' : 'System'}
+              <span className={`msg-role ${m._src === 'user' && m.role === 'tare' ? 'msg-role-answer' : ''}`}>
+                {m.role === 'tare' ? (m._src === 'user' ? '🤖 TARE Answer' : 'TARE Engine') : m.role === 'user' ? 'You' : 'System'}
               </span>
               <span className="msg-ts">{fmtTs(m.ts)}</span>
             </div>
