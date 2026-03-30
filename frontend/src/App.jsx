@@ -143,7 +143,7 @@ export default function App() {
   return (
     <div className="app-root">
       {showLanding && <LandingPage onEnter={() => setShowLanding(false)} />}
-      {!showLanding && <NarrationBar />}
+
       {showFlash && <div className="tare-flash" />}
       {zoneModal && (
         <ZoneInfoModal zoneId={zoneModal} zones={snap.zones} assets={snap.assets} onClose={() => setZoneModal(null)} />

@@ -666,7 +666,7 @@ html, body {
 /* ════════════════════════════════════════════════════════════════
    ZONE OBSERVATORY (SVG diagram)
    ════════════════════════════════════════════════════════════════ */
-.zone-panel { flex-shrink: 0; height: 345px; width: 100%; background: #060b14; }
+.zone-panel { flex: 1; width: 100%; background: #060b14; min-height: 0; }
 
 .zone-svg-wrap {
   flex: 1;
