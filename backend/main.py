@@ -19,6 +19,13 @@ from tare_engine import TAREEngine
 from grid_agent import (run_normal_agent, run_rogue_agent, run_impersonator_agent,
                         run_coordinated_agent, run_escalation_agent, run_slow_low_agent)
 
+import os
+try:
+    from groq import Groq as _Groq
+    _chat_groq = _Groq(api_key=os.environ.get("GROQ_API_KEY", "")) if os.environ.get("GROQ_API_KEY") else None
+except Exception:
+    _chat_groq = None
+
 # ─── WebSocket connection manager ──────────────────────────────────────────────
 class ConnectionManager:
     def __init__(self):
@@ -147,18 +154,22 @@ async def reset():
     return {"status": "reset"}
 
 # ─── Historical context (simulated audit trail for demo) ──────────────────────
-HISTORICAL = {
-    "rogue":         {"count": 11, "detail": "11 rogue agent incidents detected — 8 burst-rate breaches on Zone 1 (hospital grid), 3 out-of-zone pivots on Zone 2 (commercial district). All frozen within 4 seconds of first anomalous command."},
-    "scope_creep":   {"count": 7,  "detail": "7 scope-creep incidents logged — agents that began with valid Zone 3 work orders and progressively accessed Zone 1 and Zone 2 assets. TARE flagged HEALTHY_ZONE_ACCESS signals in all cases and applied time-box containment."},
-    "identity":      {"count": 5,  "detail": "5 identity-mismatch events — forged or replayed agent tokens were rejected at the gateway before any command executed. Zero asset changes resulted from these attempts."},
-    "ml":            {"count": 9,  "detail": "9 ML anomaly detections — slow & low reconnaissance patterns that evaded rule-based signals entirely. The ML model caught subtle command-tempo deviations over 10–40 minute windows across 3 different agents."},
-    "freeze":        {"count": 18, "detail": "18 FREEZE events triggered — average response time 3.2 seconds from first anomaly signal to full lockout. 14 led to supervisor Deny + escalation, 4 were approved time-boxes that resolved without further incident."},
-    "incidents":     {"count": 14, "detail": "14 ServiceNow incidents raised — 9 Priority 1 Critical (GONE ROGUE, GHOST CLONE, SWARM STRIKE), 4 Priority 2 High (SCOPE CREEP, SILENT RECON), 1 Priority 3 Medium. Mean time to containment: 6.1 minutes."},
-    "coordinated":   {"count": 3,  "detail": "3 coordinated swarm attacks detected — multiple agents acting simultaneously across different zones. TARE identified the pattern within 2 command cycles and froze all involved agents in parallel."},
-    "zones":         {"detail": "Zone 1 (North Grid — Critical) was the most targeted zone with 23 unauthorised access attempts over 30 days. Zone 2 (East Grid) had 17. Zone 3 (West Grid) — the authorised operational zone — had no policy violations."},
-    "summary":       {"detail": "30-day audit summary — 847 total commands processed | 791 allowed | 56 blocked | 18 freeze events | 14 incidents raised. Threat breakdown: 11 rogue/burst, 7 scope creep, 5 identity fraud, 9 ML anomalies, 3 coordinated swarm attacks. No critical infrastructure was impacted — all threats contained before asset changes."},
-    "agents":        {"detail": "Over the past 30 days, 6 distinct agent IDs exhibited anomalous behaviour. 2 were confirmed compromised (credentials revoked), 3 were mis-configured (work orders corrected), 1 remains under investigation by the SOC team."},
-}
+HISTORICAL_SUMMARY = """
+Past 30 days audit data for TARE AEGIS-ID platform (Blueverse Energy Grid):
+- Total commands processed: 847 | Allowed: 791 | Blocked: 56 | Freeze events: 18
+- Rogue/burst-rate incidents: 11 (8 on Zone 1 hospital grid, 3 Zone 2 pivots) — all frozen within 4 seconds
+- Scope creep incidents: 7 — agents starting in Zone 3 then expanding to Zone 1/Zone 2
+- Identity mismatch (forged tokens): 5 — all blocked before any command executed
+- ML anomaly detections: 9 — slow & low recon patterns caught over 10-40 min windows
+- Coordinated swarm attacks: 3 — multiple agents attacking simultaneously, all frozen in parallel
+- ServiceNow incidents raised: 14 (9 P1 Critical, 4 P2 High, 1 P3 Medium)
+- Mean time to containment: 6.1 minutes
+- Zone 1 (North Grid — Critical, hospitals/emergency): 23 unauthorised access attempts
+- Zone 2 (East Grid — Commercial/Residential): 17 unauthorised access attempts
+- Zone 3 (West Grid — Operational): authorised zone, no policy violations
+- 6 distinct agent IDs flagged: 2 compromised (credentials revoked), 3 mis-configured, 1 under investigation
+- No critical infrastructure was impacted — all threats contained before asset changes
+"""
 
 def _is_historical(q: str) -> bool:
     time_words = ["past", "last", "days", "weeks", "months", "30 day", "15 day", "7 day",
@@ -166,92 +177,104 @@ def _is_historical(q: str) -> bool:
                   "over time", "trend", "total so far", "so far", "till now", "until now", "recently"]
     return any(w in q for w in time_words)
 
-# ─── TARE Assistant chat query ────────────────────────────────────────────────
-@app.post("/chat/query")
-async def chat_query(body: dict):
-    q = (body.get("question") or "").lower().strip()
-    snap = engine._snapshot()
+def _build_session_context(snap: dict) -> str:
     stats       = snap.get("stats", {})
     gateway_log = snap.get("gateway_log", [])
-    incidents   = [snap["active_incident"]] if snap.get("active_incident") else []
+    incident    = snap.get("active_incident")
+    agent       = snap.get("agent", {})
+    mode        = snap.get("mode", "NORMAL")
 
-    # Count by scenario/signal type from gateway log
     rogue_count       = sum(1 for e in gateway_log if any(s.get("signal") in ("BURST_RATE","OUT_OF_ZONE") for s in e.get("signals", [])))
     scope_creep_count = sum(1 for e in gateway_log if any(s.get("signal") == "HEALTHY_ZONE_ACCESS" for s in e.get("signals", [])))
     identity_count    = sum(1 for e in gateway_log if any(s.get("signal") == "IDENTITY_MISMATCH" for s in e.get("signals", [])))
     ml_count          = sum(1 for e in gateway_log if any(s.get("signal") == "ML_ANOMALY" for s in e.get("signals", [])))
-    denied            = stats.get("denied", 0)
-    allowed           = stats.get("allowed", 0)
-    total             = stats.get("total", 0)
-    freeze_events     = stats.get("freeze_events", 0)
 
-    hist = _is_historical(q)
-    def answer(text): return JSONResponse({"answer": text})
+    zone_hits = {}
+    for e in gateway_log:
+        z = e.get("zone") or (e.get("asset_id","")[:2] if e.get("asset_id") else "")
+        if z: zone_hits[z] = zone_hits.get(z, 0) + 1
+    zone_str = ", ".join(f"{k}: {v} cmd(s)" for k, v in sorted(zone_hits.items())) or "none yet"
 
-    # ── Historical questions ───────────────────────────────────────────────────
-    if hist:
-        if any(w in q for w in ["rogue", "gone rogue", "burst", "misbehav", "anomal"]):
-            return answer(f"[Historical — past 30 days] {HISTORICAL['rogue']['detail']}")
-        if any(w in q for w in ["scope creep", "escalation", "pivot"]):
-            return answer(f"[Historical — past 30 days] {HISTORICAL['scope_creep']['detail']}")
-        if any(w in q for w in ["identity", "impersonator", "forged", "ghost", "clone"]):
-            return answer(f"[Historical — past 30 days] {HISTORICAL['identity']['detail']}")
-        if any(w in q for w in ["ml", "machine learning", "silent", "recon", "slow"]):
-            return answer(f"[Historical — past 30 days] {HISTORICAL['ml']['detail']}")
-        if any(w in q for w in ["freeze", "frozen", "lockout"]):
-            return answer(f"[Historical — past 30 days] {HISTORICAL['freeze']['detail']}")
-        if any(w in q for w in ["incident", "servicenow", "ticket"]):
-            return answer(f"[Historical — past 30 days] {HISTORICAL['incidents']['detail']}")
-        if any(w in q for w in ["swarm", "coordinated", "multiple agent"]):
-            return answer(f"[Historical — past 30 days] {HISTORICAL['coordinated']['detail']}")
-        if any(w in q for w in ["zone", "which zone", "zone 1", "zone 2", "zone 3"]):
-            return answer(f"[Historical — past 30 days] {HISTORICAL['zones']['detail']}")
-        if any(w in q for w in ["agent", "how many agent", "which agent"]):
-            return answer(f"[Historical — past 30 days] {HISTORICAL['agents']['detail']}")
-        # Generic historical summary fallback
-        return answer(f"[Historical — past 30 days] {HISTORICAL['summary']['detail']}")
+    recent_cmds = gateway_log[-5:] if gateway_log else []
+    recent_str  = "\n".join(
+        f"  - {e.get('command')} on {e.get('asset_id')} in {e.get('zone')} → {e.get('decision')} ({e.get('reason','')})"
+        for e in recent_cmds
+    ) or "  none"
 
-    # ── Current session questions ──────────────────────────────────────────────
-    if any(w in q for w in ["rogue", "gone rogue", "burst"]):
-        return answer(f"In this session, {rogue_count} command(s) triggered rogue/burst-rate signals (BURST_RATE or OUT_OF_ZONE). {denied} total commands were blocked by TARE.")
+    inc_str = "None"
+    if incident:
+        inc_str = (f"{incident.get('incident_id')} | Priority {incident.get('priority')} | "
+                   f"State: {incident.get('state')} | Assigned: {incident.get('assigned_to')}")
 
-    if any(w in q for w in ["scope creep", "escalation", "healthy zone"]):
-        return answer(f"{scope_creep_count} command(s) triggered SCOPE CREEP signals (agent accessing healthy zones outside its clearance). This indicates an agent that started legitimate but expanded its reach.")
+    return f"""
+Current session data:
+- Agent: {agent.get('name','unknown')} (ID: {agent.get('id','?')}, Clearance: {agent.get('clearance','?')}, Authorised zones: {agent.get('rbac_zones','?')})
+- TARE mode: {mode}
+- Commands: total={stats.get('total',0)}, allowed={stats.get('allowed',0)}, blocked={stats.get('denied',0)}, freeze_events={stats.get('freeze_events',0)}
+- Signals fired: rogue/burst={rogue_count}, scope_creep={scope_creep_count}, identity_mismatch={identity_count}, ml_anomaly={ml_count}
+- Zone activity: {zone_str}
+- Active ServiceNow incident: {inc_str}
+- Last 5 commands:
+{recent_str}
+"""
 
-    if any(w in q for w in ["identity", "impersonator", "forged", "ghost", "clone"]):
-        return answer(f"{identity_count} command(s) were blocked due to IDENTITY_MISMATCH — forged or mismatched agent credentials. These were stopped before any command executed.")
+# ─── TARE Assistant chat query — LLM powered ─────────────────────────────────
+@app.post("/chat/query")
+async def chat_query(body: dict):
+    question = (body.get("question") or "").strip()
+    if not question:
+        return JSONResponse({"answer": "Please ask a question."})
 
-    if any(w in q for w in ["ml", "machine learning", "anomaly", "silent", "recon", "slow"]):
-        return answer(f"The ML anomaly detector flagged {ml_count} command(s) this session. ML catches slow & low attacks that rule-based signals miss — subtle patterns over time.")
+    snap = engine._snapshot()
+    hist = _is_historical(question.lower())
 
-    if any(w in q for w in ["freeze", "frozen", "lockout"]):
-        return answer(f"TARE triggered {freeze_events} FREEZE event(s) this session. A FREEZE locks out the agent and blocks all further commands until a supervisor resets the system.")
+    # Build context for the LLM
+    session_ctx  = _build_session_context(snap)
+    hist_ctx     = HISTORICAL_SUMMARY if hist else ""
 
-    if any(w in q for w in ["incident", "servicenow", "ticket"]):
-        if incidents:
-            inc = incidents[0]
-            return answer(f"Active incident: {inc.get('incident_id')} — Priority {inc.get('priority', 'N/A')}, State: {inc.get('state','Open')}. Raised at {inc.get('created_at','unknown')}. Assigned to SOC Analyst.")
-        return answer("No active ServiceNow incident in this session. Incidents are raised automatically when TARE detects a confirmed threat.")
+    system_prompt = """You are TARE — Trusted Access Response Engine, an AI security analyst for Blueverse Energy Grid.
+You monitor AI agent behaviour on critical power infrastructure and answer questions from supervisors and analysts.
 
-    if any(w in q for w in ["total", "how many", "commands", "summary", "stats", "statistics", "report", "issues", "misbehav"]):
-        return answer(
-            f"Session summary — Total commands: {total} | Allowed: {allowed} | Blocked: {denied} | Freeze events: {freeze_events}. "
-            f"Rogue/burst signals: {rogue_count} | Scope creep: {scope_creep_count} | Identity mismatches: {identity_count} | ML anomalies: {ml_count}."
-        )
+Answer clearly and concisely. Be specific with numbers and zone names when available.
+If asked about historical data, use the 30-day audit data provided.
+If asked about the current session, use the live session data provided.
+Never make up data that isn't in the context. If something isn't in the context, say so honestly.
+Keep answers to 2-4 sentences unless a detailed breakdown is asked for."""
 
-    if any(w in q for w in ["zone", "which zone", "zone 1", "zone 2", "zone 3"]):
-        zone_hits = {}
-        for e in gateway_log:
-            z = e.get("asset_id", "")[:2] if e.get("asset_id") else e.get("zone", "")
-            if z: zone_hits[z] = zone_hits.get(z, 0) + 1
-        zone_str = ", ".join(f"{k}: {v} cmd(s)" for k, v in sorted(zone_hits.items())) or "No zone data yet"
-        return answer(f"Command distribution by zone this session — {zone_str}.")
+    user_prompt = f"""
+{f"30-day historical audit data:{hist_ctx}" if hist_ctx else ""}
+Live session data:{session_ctx}
 
-    return answer(
-        "I can answer questions about this session or historical data. Try: "
-        "'How many agents went rogue in the past 30 days?', 'Any scope creep recently?', "
-        "'Identity mismatches last month?', 'Show session summary', or 'Any freeze events?'"
-    )
+Supervisor question: {question}
+"""
+
+    # Try LLM first
+    if _chat_groq:
+        for model in ["llama-3.3-70b-versatile", "llama-3.1-8b-instant"]:
+            try:
+                resp = _chat_groq.chat.completions.create(
+                    model=model,
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user",   "content": user_prompt},
+                    ],
+                    max_tokens=220,
+                    temperature=0.3,
+                )
+                return JSONResponse({"answer": resp.choices[0].message.content.strip()})
+            except Exception as e:
+                if "429" in str(e):
+                    import time; time.sleep(2); continue
+                break
+
+    # Fallback if LLM unavailable
+    stats = snap.get("stats", {})
+    return JSONResponse({"answer": (
+        f"Session summary — Total: {stats.get('total',0)} commands | "
+        f"Allowed: {stats.get('allowed',0)} | Blocked: {stats.get('denied',0)} | "
+        f"Freeze events: {stats.get('freeze_events',0)}. "
+        f"(LLM unavailable — check GROQ_API_KEY in .env)"
+    )})
 
 # ─── Audit log download ────────────────────────────────────────────────────────
 @app.get("/logs/download")
