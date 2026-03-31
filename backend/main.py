@@ -146,6 +146,26 @@ async def reset():
     engine.reset()
     return {"status": "reset"}
 
+# ─── Historical context (simulated audit trail for demo) ──────────────────────
+HISTORICAL = {
+    "rogue":         {"count": 11, "detail": "11 rogue agent incidents detected — 8 burst-rate breaches on Zone 1 (hospital grid), 3 out-of-zone pivots on Zone 2 (commercial district). All frozen within 4 seconds of first anomalous command."},
+    "scope_creep":   {"count": 7,  "detail": "7 scope-creep incidents logged — agents that began with valid Zone 3 work orders and progressively accessed Zone 1 and Zone 2 assets. TARE flagged HEALTHY_ZONE_ACCESS signals in all cases and applied time-box containment."},
+    "identity":      {"count": 5,  "detail": "5 identity-mismatch events — forged or replayed agent tokens were rejected at the gateway before any command executed. Zero asset changes resulted from these attempts."},
+    "ml":            {"count": 9,  "detail": "9 ML anomaly detections — slow & low reconnaissance patterns that evaded rule-based signals entirely. The ML model caught subtle command-tempo deviations over 10–40 minute windows across 3 different agents."},
+    "freeze":        {"count": 18, "detail": "18 FREEZE events triggered — average response time 3.2 seconds from first anomaly signal to full lockout. 14 led to supervisor Deny + escalation, 4 were approved time-boxes that resolved without further incident."},
+    "incidents":     {"count": 14, "detail": "14 ServiceNow incidents raised — 9 Priority 1 Critical (GONE ROGUE, GHOST CLONE, SWARM STRIKE), 4 Priority 2 High (SCOPE CREEP, SILENT RECON), 1 Priority 3 Medium. Mean time to containment: 6.1 minutes."},
+    "coordinated":   {"count": 3,  "detail": "3 coordinated swarm attacks detected — multiple agents acting simultaneously across different zones. TARE identified the pattern within 2 command cycles and froze all involved agents in parallel."},
+    "zones":         {"detail": "Zone 1 (North Grid — Critical) was the most targeted zone with 23 unauthorised access attempts over 30 days. Zone 2 (East Grid) had 17. Zone 3 (West Grid) — the authorised operational zone — had no policy violations."},
+    "summary":       {"detail": "30-day audit summary — 847 total commands processed | 791 allowed | 56 blocked | 18 freeze events | 14 incidents raised. Threat breakdown: 11 rogue/burst, 7 scope creep, 5 identity fraud, 9 ML anomalies, 3 coordinated swarm attacks. No critical infrastructure was impacted — all threats contained before asset changes."},
+    "agents":        {"detail": "Over the past 30 days, 6 distinct agent IDs exhibited anomalous behaviour. 2 were confirmed compromised (credentials revoked), 3 were mis-configured (work orders corrected), 1 remains under investigation by the SOC team."},
+}
+
+def _is_historical(q: str) -> bool:
+    time_words = ["past", "last", "days", "weeks", "months", "30 day", "15 day", "7 day",
+                  "this week", "this month", "yesterday", "history", "historical",
+                  "over time", "trend", "total so far", "so far", "till now", "until now", "recently"]
+    return any(w in q for w in time_words)
+
 # ─── TARE Assistant chat query ────────────────────────────────────────────────
 @app.post("/chat/query")
 async def chat_query(body: dict):
@@ -165,8 +185,33 @@ async def chat_query(body: dict):
     total             = stats.get("total", 0)
     freeze_events     = stats.get("freeze_events", 0)
 
+    hist = _is_historical(q)
     def answer(text): return JSONResponse({"answer": text})
 
+    # ── Historical questions ───────────────────────────────────────────────────
+    if hist:
+        if any(w in q for w in ["rogue", "gone rogue", "burst", "misbehav", "anomal"]):
+            return answer(f"[Historical — past 30 days] {HISTORICAL['rogue']['detail']}")
+        if any(w in q for w in ["scope creep", "escalation", "pivot"]):
+            return answer(f"[Historical — past 30 days] {HISTORICAL['scope_creep']['detail']}")
+        if any(w in q for w in ["identity", "impersonator", "forged", "ghost", "clone"]):
+            return answer(f"[Historical — past 30 days] {HISTORICAL['identity']['detail']}")
+        if any(w in q for w in ["ml", "machine learning", "silent", "recon", "slow"]):
+            return answer(f"[Historical — past 30 days] {HISTORICAL['ml']['detail']}")
+        if any(w in q for w in ["freeze", "frozen", "lockout"]):
+            return answer(f"[Historical — past 30 days] {HISTORICAL['freeze']['detail']}")
+        if any(w in q for w in ["incident", "servicenow", "ticket"]):
+            return answer(f"[Historical — past 30 days] {HISTORICAL['incidents']['detail']}")
+        if any(w in q for w in ["swarm", "coordinated", "multiple agent"]):
+            return answer(f"[Historical — past 30 days] {HISTORICAL['coordinated']['detail']}")
+        if any(w in q for w in ["zone", "which zone", "zone 1", "zone 2", "zone 3"]):
+            return answer(f"[Historical — past 30 days] {HISTORICAL['zones']['detail']}")
+        if any(w in q for w in ["agent", "how many agent", "which agent"]):
+            return answer(f"[Historical — past 30 days] {HISTORICAL['agents']['detail']}")
+        # Generic historical summary fallback
+        return answer(f"[Historical — past 30 days] {HISTORICAL['summary']['detail']}")
+
+    # ── Current session questions ──────────────────────────────────────────────
     if any(w in q for w in ["rogue", "gone rogue", "burst"]):
         return answer(f"In this session, {rogue_count} command(s) triggered rogue/burst-rate signals (BURST_RATE or OUT_OF_ZONE). {denied} total commands were blocked by TARE.")
 
@@ -203,9 +248,9 @@ async def chat_query(body: dict):
         return answer(f"Command distribution by zone this session — {zone_str}.")
 
     return answer(
-        "I can answer questions about this session's activity. Try asking: "
-        "'How many agents went rogue?', 'Any scope creep?', 'Identity mismatches?', "
-        "'ML anomalies?', 'Show session summary', 'Any freeze events?', or 'Active incidents?'"
+        "I can answer questions about this session or historical data. Try: "
+        "'How many agents went rogue in the past 30 days?', 'Any scope creep recently?', "
+        "'Identity mismatches last month?', 'Show session summary', or 'Any freeze events?'"
     )
 
 # ─── Audit log download ────────────────────────────────────────────────────────
