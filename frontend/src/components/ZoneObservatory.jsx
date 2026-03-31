@@ -155,7 +155,7 @@ export default function ZoneObservatory({ zones, assets, accessLog, mode, darkMo
                 </text>
                 {/* Health */}
                 <text x={pos.cx} y={pos.cy + 12} className="zone-hlth" fill={col.text} opacity={0.8}>
-                  {zone.health === 'FAULT' ? '⚠ FAULT' : isAttacked ? '⚡ ATTACKED' : '✓ HEALTHY'}
+                  {zone.health === 'FAULT' ? '⚠ FAULT' : isAttacked ? '⚡ BREACHED' : '✓ HEALTHY'}
                 </text>
 
                 {/* Attack target badge */}
