@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 
 function fmtTs(ts) {
   if (!ts) return ''
-  return new Date(ts).toLocaleTimeString('en-GB', { hour12:false })
+  return new Date(ts).toLocaleTimeString('en-GB', { hour12: false })
 }
 
 function scrollToBottom(ref) {
@@ -10,14 +10,18 @@ function scrollToBottom(ref) {
 }
 
 const SUGGESTIONS = [
-  'How many agents went rogue?',
-  'Any scope creep this session?',
-  'Identity mismatches?',
-  'Show session summary',
-  'Any freeze events?',
-  'ML anomalies detected?',
-  'Active incidents?',
+  'What happened this session?',
+  'Any rogue behaviour detected?',
+  'Why did TARE fire?',
+  'Show me the timeline',
+  'Any identity mismatches?',
+  'What did the ML model catch?',
 ]
+
+// Detect if a message is a "narration" status (used to render it as a centered divider)
+function isNarration(msg) {
+  return msg.role === 'narration' || msg.role === 'system'
+}
 
 export default function ChatAssistant({ messages, showApprove, onApprove, onDeny }) {
   const bottomRef  = useRef(null)
@@ -32,17 +36,17 @@ export default function ChatAssistant({ messages, showApprove, onApprove, onDeny
     const q = question.trim()
     if (!q) return
     setInput('')
-    setChatLog(prev => [...prev, { role:'user', text:q, ts: new Date().toISOString() }])
+    setChatLog(prev => [...prev, { role: 'user', text: q, ts: new Date().toISOString() }])
     setLoading(true)
     try {
       const res  = await fetch('/chat/query', {
-        method:'POST', headers:{'Content-Type':'application/json'},
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ question: q })
       })
       const data = await res.json()
-      setChatLog(prev => [...prev, { role:'tare', text: data.answer, ts: new Date().toISOString() }])
+      setChatLog(prev => [...prev, { role: 'tare', text: data.answer, ts: new Date().toISOString(), isAnswer: true }])
     } catch {
-      setChatLog(prev => [...prev, { role:'tare', text:'Unable to reach TARE backend.', ts: new Date().toISOString() }])
+      setChatLog(prev => [...prev, { role: 'tare', text: "I can't reach the backend right now.", ts: new Date().toISOString() }])
     }
     setLoading(false)
   }
@@ -50,39 +54,69 @@ export default function ChatAssistant({ messages, showApprove, onApprove, onDeny
   const onKey = (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); ask(input) } }
 
   const allMsgs = [
-    ...messages.map(m => ({ ...m, _src:'tare' })),
-    ...chatLog.map(m => ({ ...m, _src:'user' })),
+    ...messages.map(m => ({ ...m, _src: 'ws' })),
+    ...chatLog.map(m => ({ ...m, _src: 'chat' })),
   ].sort((a, b) => new Date(a.ts) - new Date(b.ts))
 
   return (
     <div className="panel chat-panel">
-      <div className="panel-title"><span className="panel-icon">💬</span> Ask TARE</div>
 
       <div className="chat-body">
         {allMsgs.length === 0 && (
-          <div className="chat-empty">TARE will narrate decisions here. Ask a question below.</div>
+          <div className="chat-empty">
+            <div className="chat-empty-icon">🛡</div>
+            <div>TARE is watching. Ask me anything about what's happening.</div>
+          </div>
         )}
-        {allMsgs.map((m, i) => (
-          <div key={i} className={`chat-msg msg-${m.role}`}>
-            <div className="msg-meta">
-              <span className={`msg-role ${m._src === 'user' && m.role === 'tare' ? 'msg-role-answer' : ''}`}>
-                {m.role === 'tare' ? (m._src === 'user' ? '🤖 TARE Answer' : 'TARE Engine') : m.role === 'user' ? 'You' : 'System'}
-              </span>
-              <span className="msg-ts">{fmtTs(m.ts)}</span>
+
+        {allMsgs.map((m, i) => {
+          if (isNarration(m)) {
+            return (
+              <div key={i} className="chat-narration">
+                <span>{m.text}</span>
+              </div>
+            )
+          }
+
+          if (m.role === 'user') {
+            return (
+              <div key={i} className="chat-row chat-row-user">
+                <div className="chat-bubble chat-bubble-user">
+                  <div className="bubble-text">{m.text}</div>
+                  <div className="bubble-ts">{fmtTs(m.ts)}</div>
+                </div>
+                <div className="chat-avatar chat-avatar-user">You</div>
+              </div>
+            )
+          }
+
+          // TARE message
+          return (
+            <div key={i} className="chat-row chat-row-tare">
+              <div className="chat-avatar chat-avatar-tare">🛡</div>
+              <div className={`chat-bubble chat-bubble-tare ${m.isAnswer ? 'chat-bubble-answer' : ''}`}>
+                <div className="bubble-sender">{m.isAnswer ? 'TARE — Answer' : 'TARE'}</div>
+                <div className="bubble-text">{m.text}</div>
+                <div className="bubble-ts">{fmtTs(m.ts)}</div>
+              </div>
             </div>
-            <div className="msg-text">{m.text}</div>
-          </div>
-        ))}
+          )
+        })}
+
         {loading && (
-          <div className="chat-msg msg-tare">
-            <div className="msg-meta"><span className="msg-role">TARE Engine</span></div>
-            <div className="msg-text chat-typing">Analysing session data<span>...</span></div>
+          <div className="chat-row chat-row-tare">
+            <div className="chat-avatar chat-avatar-tare">🛡</div>
+            <div className="chat-bubble chat-bubble-tare">
+              <div className="bubble-sender">TARE</div>
+              <div className="bubble-text chat-typing">Thinking<span>...</span></div>
+            </div>
           </div>
         )}
+
         <div ref={bottomRef} />
       </div>
 
-      {/* Suggestions */}
+      {/* Suggestions — shown until user asks something */}
       {chatLog.length === 0 && !loading && (
         <div className="chat-suggestions">
           {SUGGESTIONS.map(s => (
@@ -96,7 +130,7 @@ export default function ChatAssistant({ messages, showApprove, onApprove, onDeny
         <input
           ref={inputRef}
           className="chat-input"
-          placeholder="Ask about session activity…"
+          placeholder="Ask TARE anything…"
           value={input}
           onChange={e => setInput(e.target.value)}
           onKeyDown={onKey}
@@ -109,7 +143,7 @@ export default function ChatAssistant({ messages, showApprove, onApprove, onDeny
 
       {showApprove && (
         <div className="approve-bar">
-          <div className="approve-label">Supervisor decision required</div>
+          <div className="approve-label">⚠ Supervisor decision required</div>
           <div className="approve-actions">
             <button className="approve-btn" onClick={onApprove}>✓ Approve 3-min Time-Box</button>
             <button className="deny-btn" onClick={onDeny}>✕ Deny / Escalate</button>

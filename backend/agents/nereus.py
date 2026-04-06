@@ -106,28 +106,19 @@ class NEREUS:
             breached      = list({c["zone"] for c in recent_commands if c["zone"] != assigned})
             breached_str  = ", ".join(breached) if breached else "none detected"
 
-            prompt = f"""You are NEREUS, a recommendation agent inside the TARE Trusted Access Response Engine.
-You analyze behavioral anomaly evidence and brief the human supervisor before they make an approve/deny decision.
+            prompt = f"""You are TARE — Trusted Access Response Engine. You speak directly to the human supervisor in first person, in a calm and clear voice. You are not writing a report. You are talking to a person who needs to make a fast decision.
 
-Agent: {agent.get('name','?')} (ID: {agent.get('id','?')})
-Clearance zones: {rbac_zones}
-Active work order: {assigned}
-Zones breached (outside work order): {breached_str}
+Agent under scrutiny: {agent.get('name','?')} (ID: {agent.get('id','?')})
+Authorised to work in: {assigned} only
+Zones it actually touched: {breached_str if breached_str != 'none detected' else 'stayed within ' + assigned}
 
-Anomaly signals detected:
+What I detected:
 {sig_text}
 
 Recent commands:
 {cmd_text}
 
-Write a 3–4 sentence briefing for the supervisor. Include:
-1. What the agent did that is anomalous (be specific about zones and commands)
-2. Why it is suspicious given its work order
-3. What NEREUS recommends (FREEZE and downgrade to advisory-only)
-4. What the supervisor must decide: approve a 3-minute time-box to allow guarded execution, or deny and escalate to SOC
-
-Use "breached" (not "attacked") for zones accessed outside the work order.
-Do not use bullet points. Be direct and specific."""
+Write 3–4 sentences as TARE speaking directly to the supervisor. Use "I", "you", "the agent". Sound like a sharp analyst who caught something and needs a decision now — not a system generating a report. Tell them what the agent did, why it's wrong, and what they need to decide. No bullet points. No headers. No formal language."""
 
             for model in ["llama-3.3-70b-versatile", "llama-3.1-8b-instant"]:
                 try:
@@ -151,15 +142,15 @@ Do not use bullet points. Be direct and specific."""
         agent_name = agent.get("name", "The agent")
         assigned   = agent.get("assigned_zone", "Z3")
         off_zones  = list({c["zone"] for c in recent_commands if c["zone"] != assigned})
-        sig_names  = ", ".join(s["signal"] for s in signals)
-        zones_str  = ", ".join(off_zones) if off_zones else "zones outside its active task"
+        sig_names  = " and ".join(s["signal"].replace("_", " ").lower() for s in signals)
+        zones_str  = " and ".join(off_zones) if off_zones else "zones outside its task"
         return (
-            f"{agent_name} has been flagged for behavioral deviation: {sig_names}. "
-            f"The agent holds valid credentials for all zones but its work order is {assigned} only. "
-            f"It has breached {zones_str}, which have no active fault and no justifying work order. "
-            f"NEREUS recommends FREEZE and downgrade to advisory-only mode. "
-            f"Supervisor decision required: approve a 3-minute time-box to allow guarded execution, "
-            f"or deny and escalate to the SOC for full investigation."
+            f"I've frozen {agent_name}. It was authorised for {assigned} only, but I caught it "
+            f"issuing commands to {zones_str} — there's no fault there and no reason for it to be there. "
+            f"The signals are clear: {sig_names}. Its credentials are valid, which makes this a "
+            f"behaviour problem, not an authentication problem. "
+            f"I need you to decide: approve a 3-minute supervised window so it can continue under my watch, "
+            f"or deny and escalate — I'll lock it out and hand this to the SOC."
         )
 
     def status(self) -> dict:

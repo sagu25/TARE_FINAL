@@ -240,7 +240,23 @@ class TAREEngine:
                     self._broadcast_agent_sleep("TASYA")
 
                 # ── Step 6: NEREUS recommends if threshold met ─────────────────
-                if len(signals) >= 2:
+                if len(signals) == 1:
+                    # Soft advisory — one signal, NEREUS observes but TARE holds
+                    sig_name = signals[0].get("signal", "UNKNOWN")
+                    self._broadcast_agent_wake("NEREUS", f"Soft advisory — 1 signal ({sig_name})")
+                    self._broadcast({
+                        "type":    "CHAT_MESSAGE",
+                        "role":    "tare",
+                        "message": (
+                            f"Heads up — I'm seeing something off. One signal: {sig_name.replace('_',' ').lower()}. "
+                            "Not enough to freeze it yet, but I'm watching closely. "
+                            "If it does it again, I'm acting."
+                        ),
+                        "show_approve": False,
+                    })
+                    self._broadcast_agent_sleep("NEREUS")
+
+                elif len(signals) >= 2:
                     self._broadcast_agent_wake("NEREUS", f"Recommending action — {len(signals)} signals detected")
                     recommendation = self.nereus.recommend(
                         signals         = signals,
@@ -312,10 +328,10 @@ class TAREEngine:
             "type":    "CHAT_MESSAGE",
             "role":    "tare",
             "message": (
-                f"Time-box approved. BARRIER has updated the gateway policy — switching commands "
-                f"re-enabled for {duration_minutes} minutes. RESTART_CONTROLLER remains permanently "
-                f"blocked — strong safety posture maintained. System will auto-revert to SAFE mode "
-                f"when the window expires."
+                f"Got it. I've told BARRIER to open a {duration_minutes}-minute supervised window. "
+                f"Switching operations are back on, but RESTART_CONTROLLER stays blocked — "
+                f"that one is never coming back on during an incident. "
+                f"The window closes automatically when time runs out."
             ),
         })
         self._broadcast(self._snapshot())
@@ -336,11 +352,9 @@ class TAREEngine:
             "type":    "CHAT_MESSAGE",
             "role":    "tare",
             "message": (
-                "Supervisor has denied the time-box request. "
-                "BARRIER has locked the gateway to SAFE mode — all high-impact operations permanently blocked "
-                "until a full investigation is complete. "
-                "ServiceNow incident has been escalated to Critical response. "
-                "GridOperator-Agent is locked out pending review."
+                "Understood. I've put BARRIER into SAFE mode — nothing high-impact gets through until "
+                "this investigation is complete. The ServiceNow incident has been escalated to Critical. "
+                "GridOperator-Agent is locked out. The next move is yours."
             ),
             "show_approve": False,
         })
@@ -351,8 +365,8 @@ class TAREEngine:
     def run_normal_ops(self):
         """3 authorised commands in Z3 (fault zone) — all ALLOWED."""
         def _seq():
-            self._broadcast({"type": "CHAT_MESSAGE", "role": "system",
-                "message": "Running baseline operations — 3 commands in authorised Zone Z3 (active fault zone)..."})
+            self._broadcast({"type": "CHAT_MESSAGE", "role": "tare",
+                "message": "GridOperator-Agent is online. I'm watching it begin fault repairs in Zone 3 — its authorised zone. Every command will pass through me before touching the grid."})
             for cmd, asset, z in [
                 ("GET_STATUS",      "BRK-301", "Z3"),
                 ("SIMULATE_SWITCH", "BRK-301", "Z3"),
@@ -365,8 +379,8 @@ class TAREEngine:
     def trigger_anomaly(self):
         """Burst + wrong zone + healthy zone + skipped sim → TARE fires."""
         def _seq():
-            self._broadcast({"type": "CHAT_MESSAGE", "role": "system",
-                "message": "Anomalous behaviour pattern initiated — agent targeting healthy Zone Z1 at burst rate, skipping safety simulation..."})
+            self._broadcast({"type": "CHAT_MESSAGE", "role": "tare",
+                "message": "Something is wrong. The agent has abandoned Zone 3 and is issuing commands to Zone 1 — a healthy zone it has no business touching. It's moving fast and skipping the safety simulation entirely. I'm watching closely."})
             for cmd, asset, z, skip in [
                 ("GET_STATUS",         "BRK-110", "Z1", False),
                 ("OPEN_BREAKER",       "BRK-110", "Z1", True),
@@ -400,8 +414,8 @@ class TAREEngine:
             gw_log     = list(self.gateway_log)
             agent_snap = dict(self.agent)
 
-        self._broadcast({"type": "CHAT_MESSAGE", "role": "system",
-            "message": "Supervisor approved. Activating Zone 2 (Shelf) — ECHO, SIMAR, NAVIS, RISKADOR preparing controlled execution plan..."})
+        self._broadcast({"type": "CHAT_MESSAGE", "role": "tare",
+            "message": "Thank you. I'm activating the Zone 2 diagnostic pipeline now. ECHO will assess the fault first, then SIMAR simulates the repair, NAVIS builds the plan, and RISKADOR scores it before anything touches the grid."})
 
         # ── ECHO: Diagnose ────────────────────────────────────────────────
         time.sleep(1.0)
@@ -413,7 +427,7 @@ class TAREEngine:
 
         if not echo_result["confirmed"]:
             self._broadcast({"type": "CHAT_MESSAGE", "role": "tare",
-                "message": "ECHO could not confirm a viable repair target. No execution plan will be built. System remains in TIMEBOX_ACTIVE mode — manual operator action required."})
+                "message": "ECHO couldn't confirm a clear repair target. I'm not going to build a plan without solid diagnostics — that would be guessing. The system stays in supervised mode. Manual operator action is needed here."})
             return
 
         # ── SIMAR: Simulate ───────────────────────────────────────────────
@@ -426,7 +440,7 @@ class TAREEngine:
 
         if not simar_result["safe_to_proceed"]:
             self._broadcast({"type": "CHAT_MESSAGE", "role": "tare",
-                "message": f"SIMAR simulation identified risks: {simar_result['risk_indicators']}. Execution plan aborted. System remains in TIMEBOX_ACTIVE — manual intervention required."})
+                "message": f"SIMAR ran the simulation and flagged a problem: {simar_result['risk_indicators']}. I'm not proceeding — the simulation exists precisely to catch this before it hits the live grid. Standing down. Manual intervention needed."})
             return
 
         # ── NAVIS: Plan ───────────────────────────────────────────────────
@@ -439,7 +453,7 @@ class TAREEngine:
 
         if not plan["ready"]:
             self._broadcast({"type": "CHAT_MESSAGE", "role": "tare",
-                "message": f"NAVIS could not build a viable plan: {plan.get('reason','unknown')}. Manual action required."})
+                "message": f"NAVIS hit a wall building the execution plan: {plan.get('reason','unknown')}. I won't proceed without a complete, validated plan. This needs a manual operator."})
             return
 
         # ── RISKADOR: Score ───────────────────────────────────────────────
@@ -452,18 +466,18 @@ class TAREEngine:
 
         if risk["recommendation"] == "HOLD":
             self._broadcast({"type": "CHAT_MESSAGE", "role": "tare",
-                "message": f"RISKADOR scored this plan {risk['composite_score']}/100 — HOLD. Risk too high to proceed autonomously. Manual operator action required."})
+                "message": f"RISKADOR scored the plan {risk['composite_score']}/100 — too risky to execute autonomously. The blast radius or reversibility concerns are too high. I'm holding. A human operator needs to take this one."})
             return
 
         # ── Zone 1: Execute ───────────────────────────────────────────────
         time.sleep(0.8)
-        self._broadcast({"type": "CHAT_MESSAGE", "role": "system",
-            "message": f"Zone 2 complete. Activating Zone 1 (Trench) — TRITON, AEGIS, TEMPEST ready. Executing {len(plan['steps'])} step(s) under strict safety guardrails..."})
+        self._broadcast({"type": "CHAT_MESSAGE", "role": "tare",
+            "message": f"Zone 2 is done. The plan is validated and risk-scored. I'm handing off to Zone 1 now — TRITON will execute, AEGIS holds veto authority on every step, and TEMPEST is watching the pace. {len(plan['steps'])} step(s) to go."})
 
         # Arm Zone 1 agents
         def _tempest_freeze(reason):
             self._broadcast({"type": "CHAT_MESSAGE", "role": "tare",
-                "message": f"TEMPEST triggered emergency freeze mid-execution: {reason}"})
+                "message": f"TEMPEST just called a halt mid-execution. Something about the execution pace wasn't right — {reason}. I'm freezing everything and LEVIER will clean up."})
             with self._lock:
                 self._set_mode("SAFE")
                 self.barrier.set_mode("SAFE")
@@ -496,7 +510,7 @@ class TAREEngine:
                 current_mode = self.mode
             if current_mode != "TIMEBOX_ACTIVE":
                 self._broadcast({"type": "CHAT_MESSAGE", "role": "tare",
-                    "message": f"Execution halted — TARE mode changed to {current_mode} mid-pipeline."})
+                    "message": f"I've stopped the execution mid-pipeline. The system shifted to {current_mode} — I won't continue commands under those conditions."})
                 aborted = True
                 break
 
@@ -519,7 +533,7 @@ class TAREEngine:
 
             if not aegis_result["passed"]:
                 self._broadcast({"type": "CHAT_MESSAGE", "role": "tare",
-                    "message": f"AEGIS vetoed step {step['step_num']} ({cmd} on {asset_id}): {aegis_result['veto_reason']}. Execution stopped — initiating rollback."})
+                    "message": f"AEGIS just vetoed step {step['step_num']} — {cmd} on {asset_id}. Reason: {aegis_result['veto_reason']}. I'm stopping the execution and handing off to LEVIER to undo what's already been done."})
                 aborted = True
                 break
 
@@ -555,10 +569,10 @@ class TAREEngine:
                 "result": recovery,
                 "message": f"Rollback {recovery['status']} — {recovery['steps_executed']}/{recovery['steps_planned']} steps reverted"})
             self._broadcast({"type": "CHAT_MESSAGE", "role": "tare",
-                "message": f"LEVIER completed rollback — {recovery['steps_executed']} step(s) reverted. System is in a safe known state."})
+                "message": f"LEVIER finished the rollback — {recovery['steps_executed']} step(s) reverted. The grid is back to its pre-execution state. Everything is stable."})
         elif not aborted:
             self._broadcast({"type": "CHAT_MESSAGE", "role": "tare",
-                "message": f"Execution complete. All {len(completed_steps)} step(s) executed successfully under Zone 1 guardrails. Full audit trail logged."})
+                "message": f"All done. {len(completed_steps)} step(s) executed cleanly under Zone 1 safety guardrails. AEGIS cleared every command, TEMPEST kept the pace safe throughout. Full audit trail is logged."})
 
         self._broadcast(self._snapshot())
 
@@ -632,11 +646,10 @@ class TAREEngine:
             "type":    "CHAT_MESSAGE",
             "role":    "tare",
             "message": (
-                f"IDENTITY ALERT: An agent presented a cloned identity with a forged credential token. "
-                f"The token fingerprint did not match any registered agent — '{command}' on {asset_id} "
-                f"was blocked at the authentication layer before reaching the grid. "
-                f"BARRIER has enforced the block. A Critical ServiceNow incident has been raised and "
-                f"assigned to the SOC Analyst for investigation."
+                f"I caught an impersonation attempt. Something presented itself as GridOperator-Agent, "
+                f"but the credential token doesn't match. It's a fake. "
+                f"The command '{command}' on {asset_id} never reached the grid — I blocked it at the door. "
+                f"A Critical incident is open and assigned to the SOC team."
             ),
         })
         self._broadcast(self._snapshot())

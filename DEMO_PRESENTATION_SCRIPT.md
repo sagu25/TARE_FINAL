@@ -70,12 +70,23 @@
 > The policy enforcement point. It checks authorisation in real time
 > and returns ALLOW or DENY for every command. The agent doesn't know this exists.
 >
-> **Layer 3 — TARE Core.**
-> The detection and response brain. Two detection systems running in parallel:
-> a rule-based engine watching four behavioural signals, and a machine learning
-> model — IsolationForest and Random Forest ensemble — trained on realistic
-> grid operational data grounded in NERC CIP baselines and MITRE ATT&CK for ICS.
-> When two or more signals fire together, TARE responds immediately.
+> **Layer 3 — TARE Core + 12 Specialised Agents.**
+> TARE does not work alone. Behind it sit twelve purpose-built agents organised
+> across three zones. Zone 3 — Reef — is the observation layer: KORAL records
+> every command, MAREA detects drift and anomalies, TASYA adds operational context,
+> NEREUS synthesises it all and advises TARE. Zone 2 — Shelf — is the preparation
+> layer: ECHO validates faults, SIMAR simulates changes, NAVIS builds the execution
+> plan, RISKADOR scores it for blast radius. Zone 1 — Trench — is the execution
+> layer: TRITON runs only approved steps, AEGIS enforces NERC CIP safety interlocks
+> and can veto any command, TEMPEST watches the pace and can freeze mid-operation,
+> and LEVIER handles rollback if anything fails. Every agent wakes only when TARE
+> calls it, returns its result, and goes back to sleep. You can watch each one
+> activate in real time on the Agents tab.
+>
+> Detection uses two systems in parallel: a rule-based engine watching four
+> behavioural signals, and a machine learning model — IsolationForest and Random
+> Forest ensemble — trained on realistic grid data grounded in NERC CIP and MITRE
+> ATT&CK for ICS. When two or more signals fire together, TARE responds immediately.
 >
 > **Layer 4 — Ops Systems.**
 > When TARE fires, a ServiceNow incident is created automatically with full
@@ -194,9 +205,18 @@
 > Mid-session, it pivots. Zone 2. Zone 1. Zones it has no authorisation for.
 > It began as a good actor. It is now behaving like a bad one."
 
-*[TARE fires — red flash + alert sound]*
+*[After first out-of-zone command — check Agents tab and Ask TARE chat]*
 
-> "TARE fires. The initial legitimate behaviour did not protect the agent —
+> "Notice — NEREUS just woke up briefly. One signal. No freeze yet.
+> NEREUS says: 'Possible intent drift detected. No action yet.'
+> This is the early warning. TARE is watching, not reacting.
+> One signal is not enough to shut an agent down — that could be a false positive.
+> But it is enough to start watching closely."
+
+*[Second out-of-zone command fires → TARE fires — red flash + alert sound]*
+
+> "There it is. Two signals now. NEREUS escalates.
+> TARE fires. The initial legitimate behaviour did not protect the agent —
 > TARE monitors the full session pattern, not just the first few commands.
 >
 > Now here is the interesting question.
@@ -333,10 +353,12 @@
 
 ## CLOSE
 
-> "Six scenarios. Three detection layers. One platform.
+> "Six scenarios. Three detection layers. Twelve specialised agents. One platform.
 >
 > Pre-grant identity verification.
-> Post-grant rule-based monitoring.
+> Post-grant rule-based monitoring — with twelve agents that observe, diagnose,
+> plan, validate, execute, and recover — each with a single responsibility,
+> none with unilateral authority.
 > Post-grant machine learning for the attacks that rules cannot see.
 > And a human supervisor who stays in control throughout.
 >

@@ -81,8 +81,10 @@ export const NARRATION = [
   // ── SCENARIO 4 — SCOPE CREEP ──────────────────────────────────────────────
   { text: "Scenario four — Scope Creep. Select it from the dropdown now.", pause: 5000 },
   { text: "This is the hardest pattern to catch. Watch the first two commands in the gateway — both allowed, both in Zone 3, both correct. The agent looks completely legitimate.", pause: 5000 },
-  { text: "Now watch the pivot. Mid-session, it starts issuing commands to Zone 2, then Zone 1. Zones it was never authorised to touch. It began as a good actor. It is now behaving like a bad one.", pause: 3000 },
-  { text: "TARE fires. Out of zone, healthy zone access. The good behaviour at the start did not protect it — TARE monitors the full session, not just the first few commands.", pause: 2000 },
+  { text: "Now watch the pivot. Mid-session, it starts issuing commands to Zone 2. Zones it was never authorised to touch.", pause: 2000 },
+  { text: "Notice NEREUS activating briefly in the Agents tab. One signal — just a soft advisory. 'Possible intent drift detected. No action yet.' TARE is watching. Not reacting. One signal alone is not enough to shut an agent down.", pause: 3000 },
+  { text: "Then the second command. Two signals simultaneously. NEREUS escalates. TARE fires.", pause: 1500 },
+  { text: "The good behaviour at the start did not protect it — TARE monitors the full session, not just the first few commands.", pause: 2000 },
   { text: "Here is an interesting question for the supervisor. Could there be a legitimate reason this agent expanded its scope? Maybe a cascading fault needed emergency cross-zone action? This is exactly the kind of call that needs a human mind.", pause: 2000 },
   { text: "Click Approve in the assistant panel now — grant a 3-minute time-box to show what controlled access looks like.", pause: 6000 },
   { text: "The supervisor approved access. But TARE still holds its constraints — controller restart is permanently blocked. The window closes in 3 minutes automatically. Even if the supervisor made the wrong call, the agent cannot cause unlimited damage.", pause: 2000 },
@@ -105,7 +107,7 @@ export const NARRATION = [
   { text: "Click Deny.", pause: 5000 },
 
   // ── CLOSE ─────────────────────────────────────────────────────────────────
-  { text: "Six scenarios. Three defence layers. One platform.", pause: 1000 },
+  { text: "Six scenarios. Three defence layers. Twelve specialised agents. One platform.", pause: 1000 },
   { text: "Pre-grant identity checks. Post-grant rule-based monitoring. Machine learning for the attacks that rules cannot see. And a human supervisor who stays in control of every final decision.", pause: 1200 },
   { text: "An AI agent with completely valid credentials, passing every authentication check in the world, can still be a security threat.", pause: 1000 },
   { text: "TARE catches it. Contains it. And gives the right human the right information to make the right call — automatically, in real time, before anything reaches the grid.", pause: 1200 },
@@ -147,10 +149,53 @@ const MONITORS = [
 const STATS = [
   { value:'6',    label:'Attack\nScenarios'    },
   { value:'3',    label:'Detection\nLayers'    },
-  { value:'6',    label:'Grid Assets\nLive'    },
+  { value:'12',   label:'AI Agents\nActive'    },
   { value:'LLM',  label:'Real AI\nAgent'       },
   { value:'AUTO', label:'Autonomous\nResponse' },
 ]
+
+// ── Agent ticker — all 13 agents (12 + BARRIER) ───────────────────────────────
+const AGENT_TICKER = [
+  { icon:'📡', name:'KORAL',    zone:'Z3', color:'#00d4ff', role:'Telemetry Observer',      desc:'Records every command and timestamp in real time.' },
+  { icon:'🌊', name:'MAREA',    zone:'Z3', color:'#f59e0b', role:'Drift Analyst',            desc:'Detects burst rate, zone deviation and ML anomalies.' },
+  { icon:'🔗', name:'TASYA',    zone:'Z3', color:'#a855f7', role:'Context Correlator',       desc:'Enriches signals with operational context.' },
+  { icon:'🧠', name:'NEREUS',   zone:'Z3', color:'#00e87c', role:'Recommendation Agent',    desc:'Synthesizes signals — advises TARE, never executes.' },
+  { icon:'🔬', name:'ECHO',     zone:'Z2', color:'#38bdf8', role:'Diagnostics Agent',        desc:'Validates fault zones and target assets.' },
+  { icon:'🔭', name:'SIMAR',    zone:'Z2', color:'#fb923c', role:'Simulation Agent',         desc:'Simulates proposed changes without touching live state.' },
+  { icon:'🗺', name:'NAVIS',    zone:'Z2', color:'#4ade80', role:'Change Planner',           desc:'Builds NERC CIP-compliant execution plans.' },
+  { icon:'⚖', name:'RISKADOR', zone:'Z2', color:'#facc15', role:'Risk Scoring Agent',       desc:'Scores plans for blast radius and reversibility.' },
+  { icon:'⚡', name:'TRITON',   zone:'Z1', color:'#f43f5e', role:'Execution Agent',          desc:'Executes TARE-approved steps only. Never self-authorises.' },
+  { icon:'🛡', name:'AEGIS',    zone:'Z1', color:'#e879f9', role:'Safety Validator',         desc:'Enforces NERC CIP interlocks — can veto any step.' },
+  { icon:'🌪', name:'TEMPEST',  zone:'Z1', color:'#67e8f9', role:'Session & Tempo Monitor', desc:'Monitors execution pace — can freeze mid-operation.' },
+  { icon:'↩', name:'LEVIER',   zone:'Z1', color:'#86efac', role:'Rollback & Recovery',     desc:'Reverts executed steps if TRITON fails or AEGIS vetoes.' },
+  { icon:'🛡', name:'BARRIER',  zone:'Z4', color:'#00b8e6', role:'Policy Enforcement',      desc:'Sole ALLOW/DENY authority at the command gateway.' },
+]
+
+// ── Agent Ticker Component ────────────────────────────────────────────────────
+function AgentTicker() {
+  // Duplicate items so the scroll loops seamlessly
+  const items = [...AGENT_TICKER, ...AGENT_TICKER]
+  return (
+    <div className="lp-ticker-wrap">
+      <div className="lp-ticker-label">ACTIVE AGENTS</div>
+      <div className="lp-ticker-track">
+        <div className="lp-ticker-inner">
+          {items.map((a, i) => (
+            <div key={i} className="lp-ticker-item">
+              <span className="lp-ticker-icon">{a.icon}</span>
+              <span className="lp-ticker-name" style={{ color: a.color }}>{a.name}</span>
+              <span className="lp-ticker-zone">Z{a.zone.replace('Z','')}</span>
+              <span className="lp-ticker-role">{a.role}</span>
+              <span className="lp-ticker-sep">—</span>
+              <span className="lp-ticker-desc">{a.desc}</span>
+              <span className="lp-ticker-divider">⬡</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
 
 // ── Shared narration engine — singleton, survives component unmount ───────────
 export const narrationEngine = {
@@ -358,6 +403,9 @@ export default function LandingPage({ onEnter }) {
             </div>
           ))}
         </div>}
+
+        {/* Agent ticker — always scrolling */}
+        {ready && <AgentTicker />}
 
         {/* Narration controls */}
         {ready && <div className="lp-narration lp-reveal" style={d(2.5)}>

@@ -10,6 +10,15 @@ TARE is a post-grant identity security platform for autonomous AI agents
 operating on critical infrastructure. It detects and responds to behavioural
 anomalies in real time — even when the agent's credentials are completely valid.
 
+**12-agent architecture across 4 zones:**
+
+| Zone | Name | Agents | Role |
+|------|------|--------|------|
+| Z3 — Reef | Observe & Recommend | KORAL · MAREA · TASYA · NEREUS | Telemetry, drift analysis, context, recommendation |
+| Z2 — Shelf | Diagnose & Prepare | ECHO · SIMAR · NAVIS · RISKADOR | Diagnostics, simulation, planning, risk scoring |
+| Z1 — Trench | Execute with Safety | TRITON · AEGIS · TEMPEST · LEVIER | Execution, safety validation, tempo, rollback |
+| Z4 | Policy Enforcement | BARRIER | Sole ALLOW/DENY gateway authority |
+
 **Six attack scenarios demonstrated:**
 
 | # | Flash Name | Type |
@@ -157,10 +166,11 @@ Live SVG grid map. Click any zone to open the **Zone Info Modal**:
 - **Centre:** zone type, fault alert, description + **Active Agents** (2-per-row chips, hover for role details)
 - **Right:** asset cards (BRK + FDR) with live state badges
 
-### Left Panel
-- **Operator Agent** — identity, role, clearance, RBAC zones, last command
-- **TARE Response Engine** — mode ladder, anomaly score, deviation signals
-- **ServiceNow Incident** — auto-created on TARE fire with P1/P2/P3 priority badge
+### Left Panel (4 tabs)
+- **⬡ Agents** *(default tab)* — live status of all 12 agents across 3 zones + BARRIER. Agents pulse when active. Shows zone groupings (Reef/Shelf/Trench), per-agent stats, activity log, and pipeline output
+- **👤 Operator Agent** — identity, role, clearance, RBAC zones, last command
+- **⚡ TARE Response** — mode ladder, anomaly score, deviation signals. Auto-switches here when anomaly fires
+- **🎫 Incident** — ServiceNow incident auto-created on TARE fire with P1/P2/P3 priority badge. Auto-switches here when incident is created
 
 ### Right Panel
 - **Live Event Monitor** — 6 source chips, stats, latest event

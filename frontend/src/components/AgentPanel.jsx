@@ -119,7 +119,7 @@ function ZoneSection({ zone, agentStates, activeAgents }) {
         <span className="azh-sub">{zone.sub}</span>
         {anyActive && <span className="azh-active-dot" />}
       </div>
-      <div className="agent-grid">
+      <div className="agent-list">
         {zone.agents.map(key => {
           const def      = AGENT_DEFS[key] || {}
           const active   = !!activeAgents[key]
@@ -142,70 +142,38 @@ function ZoneSection({ zone, agentStates, activeAgents }) {
 }
 
 function AgentCard({ name, def, active, task, info }) {
+  const stat = getAgentStat(name, info, def)
   return (
     <div
-      className={`agent-card ${active ? 'agent-card-active' : ''}`}
-      style={{
-        '--agent-color': def.color,
-        '--agent-glow':  def.glow,
-        borderColor: active ? def.color : undefined,
-        boxShadow:   active ? `0 0 16px ${def.glow}` : undefined,
-      }}
+      className={`agent-row ${active ? 'agent-row-active' : ''}`}
+      style={{ '--agent-color': def.color, '--agent-glow': def.glow }}
     >
-      {active && <div className="agent-pulse-ring" style={{ borderColor: def.color }} />}
-
-      <div className="ac-top">
-        <span className="ac-icon">{def.icon}</span>
-        <div className="ac-names">
-          <span className="ac-name" style={{ color: active ? def.color : undefined }}>{name}</span>
-          <span className="ac-role">{def.role}</span>
+      {active && <div className="agent-row-pulse" style={{ background: def.color }} />}
+      <span className="ar-icon">{def.icon}</span>
+      <div className="ar-info">
+        <div className="ar-top">
+          <span className="ar-name" style={{ color: active ? def.color : undefined }}>{name}</span>
+          <span className="ar-role">{def.role}</span>
         </div>
-        <div className={`ac-status ${active ? 'ac-status-active' : 'ac-status-sleep'}`}>
-          {active ? '● ON' : '○ ZZZ'}
-        </div>
+        {active && task && (
+          <div className="ar-task" style={{ color: def.color }}>⟶ {task}</div>
+        )}
       </div>
-
-      {active && task
-        ? <div className="ac-task" style={{ color: def.color }}>⟶ {task}</div>
-        : <div className="ac-desc">{def.desc}</div>
-      }
-
-      {name === 'KORAL' && info.total_observed != null && (
-        <div className="ac-stat">
-          <span className="ac-stat-label">Observed</span>
-          <span className="ac-stat-val" style={{ color: def.color }}>{info.total_observed}</span>
-        </div>
-      )}
-      {name === 'RISKADOR' && info.last_score?.composite_score != null && (
-        <div className="ac-stat">
-          <span className="ac-stat-label">Last score</span>
-          <span className="ac-stat-val" style={{ color: def.color }}>
-            {info.last_score.composite_score}/100 {info.last_score.recommendation}
-          </span>
-        </div>
-      )}
-      {name === 'TRITON' && info.steps_executed != null && (
-        <div className="ac-stat">
-          <span className="ac-stat-label">Steps run</span>
-          <span className="ac-stat-val" style={{ color: def.color }}>{info.steps_executed}</span>
-        </div>
-      )}
-      {name === 'TEMPEST' && info.steps_recorded != null && (
-        <div className="ac-stat">
-          <span className="ac-stat-label">Steps watched</span>
-          <span className="ac-stat-val" style={{ color: def.color }}>{info.steps_recorded}</span>
-        </div>
-      )}
-      {name === 'AEGIS' && (
-        <div className="ac-stat">
-          <span className="ac-stat-label">Veto active</span>
-          <span className="ac-stat-val" style={{ color: info.veto_active ? '#ff2d2d' : def.color }}>
-            {info.veto_active ? 'YES' : 'NO'}
-          </span>
-        </div>
-      )}
+      <div className="ar-right">
+        {stat && <span className="ar-stat" style={{ color: def.color }}>{stat}</span>}
+        <span className={`ar-dot ${active ? 'ar-dot-on' : 'ar-dot-off'}`} />
+      </div>
     </div>
   )
+}
+
+function getAgentStat(name, info, def) {
+  if (name === 'KORAL'    && info.total_observed != null)            return `${info.total_observed} obs`
+  if (name === 'RISKADOR' && info.last_score?.composite_score != null) return `${info.last_score.composite_score}/100`
+  if (name === 'TRITON'   && info.steps_executed != null)            return `${info.steps_executed} steps`
+  if (name === 'TEMPEST'  && info.steps_recorded != null)            return `${info.steps_recorded} watched`
+  if (name === 'AEGIS'    && info.veto_active)                       return 'VETO'
+  return null
 }
 
 function BarrierCard({ stateInfo, active, task }) {
