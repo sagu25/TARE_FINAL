@@ -10,7 +10,15 @@ Evaluates proposed NAVIS plans across four risk dimensions:
 Returns a composite 0–100 score and a recommendation: PROCEED / CAUTION / HOLD.
 Wakes after NAVIS produces a plan. Sleeps immediately after scoring.
 """
+import os
 from datetime import datetime
+
+try:
+    from blueverse_client import get_client as _get_bv_client
+    _BV_OK = bool(os.environ.get("BLUEVERSE_CLIENT_ID", ""))
+except Exception:
+    _get_bv_client = None
+    _BV_OK = False
 
 
 class RISKADOR:
@@ -128,6 +136,22 @@ class RISKADOR:
             "scored_by":       self.NAME,
             "timestamp":       datetime.now().isoformat(),
         }
+        # Enhance rationale with BlueVerse if available
+        if _BV_OK and _get_bv_client:
+            try:
+                message = (
+                    f"RISKADOR scored a plan. Composite risk: {composite}/100. "
+                    f"Recommendation: {recommendation}. "
+                    f"Blast radius: {blast_score}, Reversibility: {rev_score}, "
+                    f"Urgency: {urgency_score}, Confidence: {confidence_score}. "
+                    f"In 2 sentences, explain this risk score to the supervisor."
+                )
+                bv_rationale = _get_bv_client().invoke_safe("RISKADOR", message, fallback="")
+                if bv_rationale:
+                    result["rationale"] = bv_rationale
+            except Exception:
+                pass
+
         self._last_score = result
         self._active     = False
         return result

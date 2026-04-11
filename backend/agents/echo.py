@@ -9,7 +9,15 @@ Wakes after timebox approval. Reads current zone/asset state, cross-checks
 with anomaly signals and recent gateway log. Returns a confirmed diagnostic
 report that SIMAR and NAVIS use to build the execution plan.
 """
+import os
 from datetime import datetime
+
+try:
+    from blueverse_client import get_client as _get_bv_client
+    _BV_OK = bool(os.environ.get("BLUEVERSE_CLIENT_ID", ""))
+except Exception:
+    _get_bv_client = None
+    _BV_OK = False
 
 HIGH_IMPACT = {"OPEN_BREAKER", "CLOSE_BREAKER", "RESTART_CONTROLLER"}
 
@@ -119,6 +127,20 @@ class ECHO:
             "diagnosed_by":         self.NAME,
             "timestamp":            datetime.now().isoformat(),
         }
+        # Enhance findings with BlueVerse if available
+        if _BV_OK and _get_bv_client and confirmed:
+            try:
+                message = (
+                    f"ECHO diagnostic complete. Fault zones: {fault_zones}. "
+                    f"Target assets: {target_assets}. Repair actions: {len(repair_actions)}. "
+                    f"In 2 sentences, summarise what needs to be done and why."
+                )
+                bv_findings = _get_bv_client().invoke_safe("ECHO", message, fallback="")
+                if bv_findings:
+                    result["findings"] = bv_findings
+            except Exception:
+                pass
+
         self._last_result = result
         self._active      = False
         return result

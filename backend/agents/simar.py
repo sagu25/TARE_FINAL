@@ -9,8 +9,16 @@ Wakes after ECHO confirms the diagnostic. Takes ECHO's proposed repair
 actions, applies them to a frozen snapshot of zones and assets, and
 returns the predicted outcome including state changes and risk indicators.
 """
+import os
 import copy
 from datetime import datetime
+
+try:
+    from blueverse_client import get_client as _get_bv_client
+    _BV_OK = bool(os.environ.get("BLUEVERSE_CLIENT_ID", ""))
+except Exception:
+    _get_bv_client = None
+    _BV_OK = False
 
 HIGH_IMPACT = {"OPEN_BREAKER", "CLOSE_BREAKER", "RESTART_CONTROLLER"}
 
@@ -130,6 +138,21 @@ class SIMAR:
             "simulated_by":     self.NAME,
             "timestamp":        datetime.now().isoformat(),
         }
+        # Enhance summary with BlueVerse if available
+        if _BV_OK and _get_bv_client:
+            try:
+                message = (
+                    f"SIMAR simulation complete. Steps: {len(proposed_steps)}. "
+                    f"Asset changes: {affected_assets}. Zone changes: {affected_zones}. "
+                    f"Risks: {risk_indicators}. Safe to proceed: {safe_to_proceed}. "
+                    f"In 2 sentences, summarise the simulation outcome for the supervisor."
+                )
+                bv_summary = _get_bv_client().invoke_safe("SIMAR", message, fallback="")
+                if bv_summary:
+                    result["summary"] = bv_summary
+            except Exception:
+                pass
+
         self._last_result = result
         self._active      = False
         return result

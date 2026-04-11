@@ -8,7 +8,15 @@ Produces a sequenced plan with explicit prerequisites and rollback steps.
 Passes the plan to RISKADOR for scoring, then to TARE for permit issuance.
 NAVIS never executes — it only plans.
 """
+import os
 from datetime import datetime
+
+try:
+    from blueverse_client import get_client as _get_bv_client
+    _BV_OK = bool(os.environ.get("BLUEVERSE_CLIENT_ID", ""))
+except Exception:
+    _get_bv_client = None
+    _BV_OK = False
 
 # NERC CIP SOP: simulation must precede switching
 SOP_SEQUENCE = {
@@ -134,6 +142,21 @@ class NAVIS:
             "ready":                True,
             "timestamp":            datetime.now().isoformat(),
         }
+        # Enhance plan goal with BlueVerse if available
+        if _BV_OK and _get_bv_client and plan.get("ready"):
+            try:
+                message = (
+                    f"NAVIS built a {len(plan.get('steps',[]))} step NERC CIP plan. "
+                    f"Goal: {plan.get('goal')}. "
+                    f"Estimated duration: {plan.get('estimated_duration_s')}s. "
+                    f"In 1-2 sentences, explain what this plan will achieve and why it is safe."
+                )
+                bv_goal = _get_bv_client().invoke_safe("NAVIS", message, fallback="")
+                if bv_goal:
+                    plan["goal_briefing"] = bv_goal
+            except Exception:
+                pass
+
         self._last_plan = plan
         self._active    = False
         return plan

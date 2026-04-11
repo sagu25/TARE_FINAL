@@ -1,5 +1,7 @@
 """
 TASYA — Context Correlator (Zone 3 / Reef)
+BlueVerse agent used for context enrichment when available.
+Falls back to built-in Python context logic if BlueVerse unavailable.
 
 Wakes only when MAREA returns signals.
 Correlates observed behavior with operational context:
@@ -12,6 +14,15 @@ Enriches each signal with a plain-English context reason.
 Determines whether the observed actions make sense given the current situation.
 Never blocks. Never executes. Only adds context.
 """
+
+
+import os
+try:
+    from blueverse_client import get_client as _get_bv_client
+    _BV_OK = bool(os.environ.get("BLUEVERSE_CLIENT_ID", ""))
+except Exception:
+    _get_bv_client = None
+    _BV_OK = False
 
 
 class TASYA:
@@ -104,6 +115,22 @@ class TASYA:
 
             else:
                 ctx["context"] = "Behavioral deviation detected. No additional operational context available."
+
+            # Enhance context with BlueVerse if available
+            if _BV_OK and _get_bv_client:
+                try:
+                    message = (
+                        f"Signal: {signal_type} | Severity: {sig.get('severity','?')} | "
+                        f"Detail: {sig.get('detail','')} | "
+                        f"Agent: {agent_name} | Assigned zone: {assigned} | "
+                        f"Context so far: {ctx.get('context','')} | "
+                        f"In 1-2 sentences, explain why this is operationally suspicious."
+                    )
+                    bv_context = _get_bv_client().invoke_safe("TASYA", message, fallback="")
+                    if bv_context:
+                        ctx["context"] = bv_context
+                except Exception:
+                    pass
 
             ctx["correlated_by"] = self.NAME
             enriched.append(ctx)

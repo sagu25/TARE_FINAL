@@ -7,10 +7,21 @@ human-readable recommendation for TARE.
 Wakes only when TASYA has enriched signals that meet the TARE threshold (≥ 2).
 Returns a recommendation dict — never executes anything.
 TARE makes the final decision. NEREUS only advises.
+
+LLM priority: BlueVerse agent → Groq fallback → static fallback
 """
 import os
 import time
 
+# ── BlueVerse (primary LLM) ────────────────────────────────────────────────
+try:
+    from blueverse_client import get_client as _get_bv_client
+    _BV_OK = bool(os.environ.get("BLUEVERSE_CLIENT_ID", ""))
+except Exception:
+    _get_bv_client = None
+    _BV_OK = False
+
+# ── Groq (fallback LLM) ────────────────────────────────────────────────────
 try:
     from groq import Groq as _Groq
     _groq_key    = os.environ.get("GROQ_API_KEY", "")
@@ -80,11 +91,52 @@ class NEREUS:
     # ── Explanation ────────────────────────────────────────────────────────────
 
     def _build_explanation(self, signals, agent, recent_commands):
+        # 1. Try BlueVerse agent first
+        if _BV_OK and _get_bv_client:
+            result = self._blueverse_explain(signals, agent, recent_commands)
+            if result:
+                return result
+        # 2. Fallback to Groq
         if _LLM_OK and _groq_client:
             result = self._llm_explain(signals, agent, recent_commands)
             if result:
                 return result
+        # 3. Static fallback
         return self._static_explain(signals, agent, recent_commands)
+
+    def _blueverse_explain(self, signals, agent, recent_commands):
+        try:
+            sig_lines = "\n".join(
+                f"- {s['signal']} ({s.get('severity','?')}): {s.get('detail','')}"
+                + (f"\n  Context: {s['context']}" if s.get('context') else "")
+                for s in signals
+            )
+            cmd_lines = "\n".join(
+                f"  - {c['command']} on {c.get('asset_id','?')} in {c.get('zone','?')}"
+                for c in recent_commands[-5:]
+            )
+            assigned   = agent.get("assigned_zone", "Z3")
+            off_zones  = list({c["zone"] for c in recent_commands if c["zone"] != assigned})
+
+            message = f"""Analyze this security incident on the TARE energy grid system.
+
+Agent under scrutiny: {agent.get('name','?')} (ID: {agent.get('id','?')})
+Authorised zone: {assigned}
+Zones accessed: {', '.join(off_zones) if off_zones else assigned}
+
+Signals detected:
+{sig_lines}
+
+Recent commands:
+{cmd_lines}
+
+Provide a 3-4 sentence briefing for the human supervisor. Speak as NEREUS in first person.
+Tell them what the agent did, why it's suspicious, and what decision they need to make now."""
+
+            client = _get_bv_client()
+            return client.invoke_safe("NEREUS", message, fallback="")
+        except Exception:
+            return ""
 
     def _llm_explain(self, signals, agent, recent_commands):
         try:
