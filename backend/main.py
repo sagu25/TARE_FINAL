@@ -18,6 +18,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from tare_engine import TAREEngine
 from grid_agent import (run_normal_agent, run_rogue_agent, run_impersonator_agent,
                         run_coordinated_agent, run_escalation_agent, run_slow_low_agent)
+from mcp_server import router as mcp_router
 
 import os
 try:
@@ -69,6 +70,7 @@ async def lifespan(app: FastAPI):
     yield
 
 app = FastAPI(title="TARE — Trusted Access Response Engine", lifespan=lifespan)
+app.state.tare_engine = engine
 
 app.add_middleware(
     CORSMiddleware,
@@ -76,6 +78,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.include_router(mcp_router)
 
 # ─── WebSocket endpoint ────────────────────────────────────────────────────────
 @app.websocket("/ws")
