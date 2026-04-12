@@ -101,7 +101,7 @@ class BlueverseClient:
         # Build request body matching BlueVerse chatservice API format
         body = {
             "query":      message,
-            "Space_name": space_name,
+            "space_name": space_name,
         }
         if flow_id:
             body["flowId"] = flow_id
