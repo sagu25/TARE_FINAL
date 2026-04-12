@@ -251,12 +251,13 @@ export default function App() {
               feedItems={feedItems} stats={snap.stats}
               wsConnected={wsConnected} scenarioActive={scenarioActive}
               onReset={()             => post('/reset')}
-              onAgentNormal={()       => runScenario('/agent/normal')}
-              onAgentRogue={()        => runScenario('/agent/rogue')}
-              onAgentImpersonator={() => runScenario('/agent/impersonator')}
-              onAgentCoordinated={()  => runScenario('/agent/coordinated')}
-              onAgentEscalation={()   => runScenario('/agent/escalation')}
-              onAgentSlowLow={()      => runScenario('/agent/slowlow')}
+              onAgentNormal={()           => runScenario('/agent/normal')}
+              onAgentRogue={()            => runScenario('/agent/rogue')}
+              onAgentImpersonator={()     => runScenario('/agent/impersonator')}
+              onAgentCoordinated={()      => runScenario('/agent/coordinated')}
+              onAgentEscalation={()       => runScenario('/agent/escalation')}
+              onAgentSlowLow={()          => runScenario('/agent/slowlow')}
+              onAgentReadonlyWrite={()    => runScenario('/agent/readonly-write')}
             />
           </div>
 

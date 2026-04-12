@@ -71,6 +71,16 @@ const SCENARIOS = [
       'TARE issues a single FREEZE that stops both vectors',
     ],
   },
+  {
+    label: '🚫 READ-ONLY BREACH', key: 'readonly_write', threat: 'HIGH',
+    title: 'Read-Only Identity — Write Attempt',
+    what: 'A monitoring identity (KORAL_AGENT) is only allowed to read telemetry. It starts normally — fetching status and pulling metrics — then suddenly attempts OPEN_BREAKER, a write operation outside its role.',
+    watch: [
+      'KORAL logs the identity action attempt with action type',
+      'TARE checks the identity registry — role is READ_ONLY_MONITOR',
+      'BARRIER applies READ_ONLY_DOWNGRADE. ServiceNow ticket raised.',
+    ],
+  },
 ]
 
 const THREAT_COLORS = {
@@ -80,7 +90,7 @@ const THREAT_COLORS = {
 export default function RightPanel({
   feedItems, stats, wsConnected, scenarioActive,
   onReset, onAgentNormal, onAgentRogue, onAgentImpersonator,
-  onAgentCoordinated, onAgentEscalation, onAgentSlowLow,
+  onAgentCoordinated, onAgentEscalation, onAgentSlowLow, onAgentReadonlyWrite,
 }) {
   const [ddOpen,          setDdOpen]          = useState(false)
   const [pendingScenario, setPendingScenario] = useState(null)
@@ -112,6 +122,7 @@ export default function RightPanel({
   const HANDLERS = {
     normal: onAgentNormal, rogue: onAgentRogue, impersonator: onAgentImpersonator,
     escalation: onAgentEscalation, slowlow: onAgentSlowLow, coordinated: onAgentCoordinated,
+    readonly_write: onAgentReadonlyWrite,
   }
 
   // Close dropdown on outside click
