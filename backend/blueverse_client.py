@@ -16,25 +16,25 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# ─── Agent ID map (fill values in .env) ───────────────────────────────────────
-AGENT_IDS = {
+# ─── Agent config map (Space_name + flowId per agent) ────────────────────────
+AGENT_CONFIG = {
     # Zone 3 — Reef
-    "KORAL":    os.getenv("BV_AGENT_KORAL", ""),
-    "MAREA":    os.getenv("BV_AGENT_MAREA", ""),
-    "TASYA":    os.getenv("BV_AGENT_TASYA", ""),
-    "NEREUS":   os.getenv("BV_AGENT_NEREUS", ""),
+    "KORAL":    {"space": os.getenv("BV_AGENT_KORAL", ""),    "flow": os.getenv("BV_FLOW_KORAL", "")},
+    "MAREA":    {"space": os.getenv("BV_AGENT_MAREA", ""),    "flow": os.getenv("BV_FLOW_MAREA", "")},
+    "TASYA":    {"space": os.getenv("BV_AGENT_TASYA", ""),    "flow": os.getenv("BV_FLOW_TASYA", "")},
+    "NEREUS":   {"space": os.getenv("BV_AGENT_NEREUS", ""),   "flow": os.getenv("BV_FLOW_NEREUS", "")},
     # Zone 2 — Shelf
-    "ECHO":     os.getenv("BV_AGENT_ECHO", ""),
-    "SIMAR":    os.getenv("BV_AGENT_SIMAR", ""),
-    "NAVIS":    os.getenv("BV_AGENT_NAVIS", ""),
-    "RISKADOR": os.getenv("BV_AGENT_RISKADOR", ""),
+    "ECHO":     {"space": os.getenv("BV_AGENT_ECHO", ""),     "flow": os.getenv("BV_FLOW_ECHO", "")},
+    "SIMAR":    {"space": os.getenv("BV_AGENT_SIMAR", ""),    "flow": os.getenv("BV_FLOW_SIMAR", "")},
+    "NAVIS":    {"space": os.getenv("BV_AGENT_NAVIS", ""),    "flow": os.getenv("BV_FLOW_NAVIS", "")},
+    "RISKADOR": {"space": os.getenv("BV_AGENT_RISKADOR", ""), "flow": os.getenv("BV_FLOW_RISKADOR", "")},
     # Zone 1 — Trench
-    "TRITON":   os.getenv("BV_AGENT_TRITON", ""),
-    "AEGIS":    os.getenv("BV_AGENT_AEGIS", ""),
-    "TEMPEST":  os.getenv("BV_AGENT_TEMPEST", ""),
-    "LEVIER":   os.getenv("BV_AGENT_LEVIER", ""),
+    "TRITON":   {"space": os.getenv("BV_AGENT_TRITON", ""),   "flow": os.getenv("BV_FLOW_TRITON", "")},
+    "AEGIS":    {"space": os.getenv("BV_AGENT_AEGIS", ""),    "flow": os.getenv("BV_FLOW_AEGIS", "")},
+    "TEMPEST":  {"space": os.getenv("BV_AGENT_TEMPEST", ""),  "flow": os.getenv("BV_FLOW_TEMPEST", "")},
+    "LEVIER":   {"space": os.getenv("BV_AGENT_LEVIER", ""),   "flow": os.getenv("BV_FLOW_LEVIER", "")},
     # Zone 4
-    "BARRIER":  os.getenv("BV_AGENT_BARRIER", ""),
+    "BARRIER":  {"space": os.getenv("BV_AGENT_BARRIER", ""),  "flow": os.getenv("BV_FLOW_BARRIER", "")},
 }
 
 
@@ -88,26 +88,31 @@ class BlueverseClient:
         message    : the prompt/question to send to the agent
         Returns    : agent response as string
         """
-        agent_id = AGENT_IDS.get(agent_name, "")
-        if not agent_id:
-            raise ValueError(f"No BlueVerse agent ID configured for {agent_name}. "
+        config = AGENT_CONFIG.get(agent_name, {})
+        space_name = config.get("space", "")
+        flow_id    = config.get("flow", "")
+
+        if not space_name:
+            raise ValueError(f"No BlueVerse Space_name configured for {agent_name}. "
                              f"Set BV_AGENT_{agent_name} in .env")
 
         token = self._get_token()
 
-        url = self._chat_url.rstrip("/")
-        if "{agent_id}" in url:
-            url = url.replace("{agent_id}", agent_id)
-        else:
-            url = f"{url}/{agent_id}"
+        # Build request body matching BlueVerse chatservice API format
+        body = {
+            "query":      message,
+            "Space_name": space_name,
+        }
+        if flow_id:
+            body["flowId"] = flow_id
 
         resp = requests.post(
-            url,
+            self._chat_url.rstrip("/"),
             headers={
                 "Authorization": f"Bearer {token}",
                 "Content-Type":  "application/json",
             },
-            json={"message": message},
+            json=body,
             verify=self._verify_ssl,
             timeout=30,
         )
