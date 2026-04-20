@@ -1,0 +1,33 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -c \"from aegis_engine import AegisEngine, ABAC_POLICIES; e = AegisEngine\\(\\); r = e.register_session\\(''GridMonitor-Alpha'',''fp_gma_a3f9c2''\\); print\\(''Legit agent:'', r\\); r2 = e.register_session\\(''GridMonitor-Alpha'',''fp_rogue_ff0000''\\); print\\(''Rogue agent:'', r2\\); print\\(''Risk score:'', e.calculate_risk_score\\(\\)\\)\")",
+      "Bash(start:*)",
+      "Bash(cmd /c \"taskkill /F /PID 13468\")",
+      "Bash(cmd /c \"taskkill /F /PID 23608\")",
+      "Bash(netstat -ano)",
+      "Bash(findstr \":8003\")",
+      "Bash(findstr LISTENING)",
+      "Bash(cmd /c \"taskkill /F /IM python.exe /T\")",
+      "Bash(curl -s -w \"\\\\nHTTP:%{http_code}\" http://localhost:8004/)",
+      "Bash(curl -s -w \"\\\\nHTTP:%{http_code}\" http://localhost:8004/assets/index-BiFI33Hn.js)",
+      "Bash(cmd /c \"netstat -ano | findstr :8003\")",
+      "Bash(cmd /c \"taskkill /F /IM python.exe 2>&1\")",
+      "Bash(python run.py)",
+      "Bash(cmd /c \"netstat -ano | findstr LISTEN | findstr 800\")",
+      "Bash(cmd /c \"netstat -ano | findstr :800\")",
+      "Bash(python -m uvicorn main:app --port 8004 --host 0.0.0.0)",
+      "Bash(npm run:*)",
+      "Bash(cp:*)",
+      "Bash(cd:*)",
+      "Bash(python -m uvicorn main:app --port 8005 --host 0.0.0.0)",
+      "Bash(python -m uvicorn main:app --port 8008 --host 0.0.0.0)",
+      "Bash(rm:*)",
+      "Bash(python -c \"from tare_engine import TAREEngine; from main import app; print\\(''Import OK''\\)\")",
+      "Bash(python -c \"from tare_engine import TAREEngine; e = TAREEngine\\(\\); print\\(''Engine OK, LLM available:'', e.__class__.__module__\\)\")",
+      "Bash(python:*)",
+      "Bash(curl -s http://localhost:8004/)",
+      "Bash(pip install:*)"
+    ]
+  }
+}
