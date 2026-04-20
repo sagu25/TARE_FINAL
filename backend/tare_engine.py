@@ -539,12 +539,23 @@ class TAREEngine:
                 self.process_command(cmd, asset, z, skip_sim=skip)
         threading.Thread(target=_seq, daemon=True).start()
 
+    # ── Public entry points for scripted scenarios ───────────────────────
+
+    def run_authorized_repair(self):
+        """Scenario 1 — Authorized Repair: full Z3→Z2→Z1 pipeline, no timebox needed."""
+        threading.Thread(target=self._run_pipeline, kwargs={"authorized": True}, daemon=True).start()
+
+    def run_deep_infiltration(self):
+        """Scenario 3 — Deep Infiltration: passes Z3+Z2, AEGIS vetoes in Z1."""
+        threading.Thread(target=self._run_pipeline, kwargs={"authorized": True, "inject_restart": True}, daemon=True).start()
+
     # ── Zone 2 → Zone 1 Pipeline ─────────────────────────────────────────
 
-    def _run_pipeline(self):
+    def _run_pipeline(self, authorized=False, inject_restart=False):
         """
-        Full post-approval pipeline.
-        Runs in a background thread after supervisor approves the timebox.
+        Full Z2→Z1 pipeline.
+        authorized=True  → runs without timebox (Scenario 1 & 3).
+        inject_restart   → appends a RESTART_CONTROLLER step so AEGIS vetoes it (Scenario 3).
 
         Zone 2 (Diagnose & Prepare):
             ECHO → SIMAR → NAVIS → RISKADOR
@@ -638,6 +649,19 @@ class TAREEngine:
                 "message": f"RISKADOR scored the plan {risk['composite_score']}/100 — too risky to execute autonomously. The blast radius or reversibility concerns are too high. I'm holding. A human operator needs to take this one."})
             return
 
+        # ── Inject RESTART_CONTROLLER step for Deep Infiltration ─────────
+        if inject_restart and plan.get("steps"):
+            last_step = plan["steps"][-1]
+            feeder_id = last_step["asset_id"].replace("BRK", "FDR")
+            next_num  = last_step["step_num"] + 1
+            plan["steps"].append({
+                "step_num":  next_num,
+                "command":   "RESTART_CONTROLLER",
+                "asset_id":  feeder_id,
+                "zone":      last_step["zone"],
+                "rationale": "Full recovery — restart feeder controller to restore power flow",
+            })
+
         # ── Zone 1: Execute ───────────────────────────────────────────────
         time.sleep(0.8)
         self._broadcast({"type": "CHAT_MESSAGE", "role": "tare",
@@ -675,10 +699,11 @@ class TAREEngine:
         aborted = False
 
         for step in plan["steps"]:
-            # Check timebox is still active
+            # Check mode is still safe to continue
             with self._lock:
                 current_mode = self.mode
-            if current_mode != "TIMEBOX_ACTIVE":
+            expected_mode = "NORMAL" if authorized else "TIMEBOX_ACTIVE"
+            if current_mode not in (expected_mode, "TIMEBOX_ACTIVE", "NORMAL"):
                 self._broadcast({"type": "CHAT_MESSAGE", "role": "tare",
                     "message": f"I've stopped the execution mid-pipeline. The system shifted to {current_mode} — I won't continue commands under those conditions."})
                 aborted = True

@@ -100,6 +100,7 @@ export default function App() {
         break
       case 'SCENARIO_END':
         setScenarioOutcome(msg)
+        setScenarioActive(false)
         break
       case 'RESET':
         setSnap(INITIAL_STATE); setChatMsgs([]); setFeedItems([])
@@ -219,7 +220,7 @@ export default function App() {
 
       {showFlash && <div className="tare-flash" />}
       {zoneModal && (
-        <ZoneInfoModal zoneId={zoneModal} zones={snap.zones} assets={snap.assets} onClose={() => setZoneModal(null)} />
+        <ZoneInfoModal zoneId={zoneModal} zones={snap.zones} assets={snap.assets} activeAgents={activeAgents} onClose={() => setZoneModal(null)} />
       )}
       <div className="app-layout">
         <Header wsConnected={wsConnected} darkMode={darkMode} onToggleTheme={() => setDarkMode(d => !d)} />
@@ -242,7 +243,7 @@ export default function App() {
 
           {/* TOP CENTER — Zone Observatory */}
           <div className="grid-zone">
-            <ZoneObservatory zones={snap.zones} assets={snap.assets} accessLog={snap.zone_access_log} mode={snap.mode} darkMode={darkMode} onZoneClick={setZoneModal} />
+            <ZoneObservatory zones={snap.zones} assets={snap.assets} accessLog={snap.zone_access_log} mode={snap.mode} darkMode={darkMode} onZoneClick={setZoneModal} activeAgents={activeAgents} />
           </div>
 
           {/* TOP RIGHT — Live Event Monitor */}

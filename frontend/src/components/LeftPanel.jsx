@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react'
-import OperatorAgent  from './OperatorAgent'
 import TAREResponse   from './TAREResponse'
 import ServiceNowCard from './ServiceNowCard'
 import AgentPanel     from './AgentPanel'
@@ -37,10 +36,6 @@ export default function LeftPanel({ agent, mode, signals, score, incident,
           {hasActive && tab !== 'agents' && (
             <span className="ptab-dot" style={{ background: '#00d4ff' }} />
           )}
-        </button>
-
-        <button className={`ptab ${tab==='agent'?'ptab-active':''}`} onClick={() => setTab('agent')}>
-          👤 Operator
         </button>
 
         <button
@@ -82,9 +77,6 @@ export default function LeftPanel({ agent, mode, signals, score, incident,
           scenarioOutcome={scenarioOutcome}
           agentVoices={agentVoices}
         />
-      </div>
-      <div className={`ptab-body ${tab==='agent'    ? '' : 'ptab-hidden'}`}>
-        <OperatorAgent agent={agent} />
       </div>
       <div className={`ptab-body ${tab==='tare'     ? '' : 'ptab-hidden'}`}>
         <TAREResponse mode={mode} signals={signals} score={score} />

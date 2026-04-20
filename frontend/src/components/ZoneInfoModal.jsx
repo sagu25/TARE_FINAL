@@ -1,20 +1,13 @@
 import { useState } from 'react'
-import ZoneGISMap from './ZoneGISMap'
 
 export const ZONE_DISPLAY = { Z1: 'Zone 1', Z2: 'Zone 2', Z3: 'Zone 3' }
 
 const ALL_AGENTS = {
-  TARE: {
-    name: 'TARE',
-    role: 'Central Decision Engine',
-    color: '#00d4ff',
-    icon: '⚡',
-    desc: 'Trusted Access Response Engine — the central post-grant decision engine. Evaluates agent behaviour over time and enforces Freeze, Downgrade, Time-box, and Escalation actions while keeping humans in control of high-impact decisions.',
-  },
+  // Z3 — Observability layer
   KORAL: {
     name: 'KORAL',
     role: 'Telemetry Observer',
-    color: '#00e87c',
+    color: '#00d4ff',
     icon: '📡',
     desc: 'Continuously collects telemetry, logs, and signals across systems without interpretation or action. Provides a trusted baseline of "what is happening" for all higher-level analysis.',
   },
@@ -22,7 +15,7 @@ const ALL_AGENTS = {
     name: 'MAREA',
     role: 'Drift Analyst',
     color: '#f59e0b',
-    icon: '📈',
+    icon: '🌊',
     desc: 'Analyses telemetry over time to detect behavioural drift — scope creep, tempo changes, or unusual patterns. Focuses on trends and deviations, not single events.',
   },
   TASYA: {
@@ -35,16 +28,74 @@ const ALL_AGENTS = {
   NEREUS: {
     name: 'NEREUS',
     role: 'Recommendation Agent',
-    color: '#ff9a3c',
-    icon: '💡',
+    color: '#00e87c',
+    icon: '🧠',
     desc: 'Synthesises drift and context into clear, human-readable recommendations. Never executes actions — only advises TARE on possible next steps.',
+  },
+  // Z2 — Planning layer
+  ECHO: {
+    name: 'ECHO',
+    role: 'Diagnostics Agent',
+    color: '#38bdf8',
+    icon: '🔬',
+    desc: 'Validates fault zones and target assets before any plan is built. Ensures the agent is working on the right problem in the right place.',
+  },
+  SIMAR: {
+    name: 'SIMAR',
+    role: 'Simulation Agent',
+    color: '#fb923c',
+    icon: '🔭',
+    desc: 'Simulates proposed changes against a digital twin of the grid without touching live state. Catches unsafe actions before they become real commands.',
+  },
+  NAVIS: {
+    name: 'NAVIS',
+    role: 'Change Planner',
+    color: '#4ade80',
+    icon: '🗺',
+    desc: 'Builds NERC CIP-compliant execution plans from simulation results. Produces step-by-step action sequences that TARE can approve and TRITON can execute.',
+  },
+  RISKADOR: {
+    name: 'RISKADOR',
+    role: 'Risk Scoring Agent',
+    color: '#facc15',
+    icon: '⚖',
+    desc: 'Scores each plan for blast radius, reversibility, and downstream risk. High-risk plans are escalated to human review before any action is taken.',
+  },
+  // Z1 — Execution layer
+  TRITON: {
+    name: 'TRITON',
+    role: 'Execution Agent',
+    color: '#f43f5e',
+    icon: '⚡',
+    desc: 'Executes TARE-approved steps only. Never self-authorises a command. Every action is gated by TARE and subject to AEGIS veto before it reaches a physical asset.',
+  },
+  AEGIS: {
+    name: 'AEGIS',
+    role: 'Safety Validator',
+    color: '#e879f9',
+    icon: '🛡',
+    desc: 'Enforces NERC CIP safety interlocks at execution time. Can veto any step TRITON is about to take, regardless of prior approvals, if a safety condition is violated.',
+  },
+  TEMPEST: {
+    name: 'TEMPEST',
+    role: 'Session & Tempo Monitor',
+    color: '#67e8f9',
+    icon: '🌪',
+    desc: 'Monitors execution pace in real time. If commands arrive too fast or out of expected sequence, TEMPEST can trigger an immediate freeze mid-operation.',
+  },
+  LEVIER: {
+    name: 'LEVIER',
+    role: 'Rollback & Recovery',
+    color: '#86efac',
+    icon: '↩',
+    desc: 'Reverts executed steps if TRITON fails or AEGIS vetoes mid-sequence. Ensures the grid is never left in a partial or unsafe state after an interrupted operation.',
   },
 }
 
 const ZONE_AGENTS = {
-  Z1: ['TARE'],
-  Z2: ['TARE'],
-  Z3: ['TARE', 'KORAL', 'MAREA', 'TASYA', 'NEREUS'],
+  Z3: ['KORAL', 'MAREA', 'TASYA', 'NEREUS'],
+  Z2: ['ECHO', 'SIMAR', 'NAVIS', 'RISKADOR'],
+  Z1: ['TRITON', 'AEGIS', 'TEMPEST', 'LEVIER'],
 }
 
 export const ZONE_INFO = {
@@ -122,7 +173,7 @@ export function ZoneIllustration({ zoneId, color }) {
   )
 }
 
-export default function ZoneInfoModal({ zoneId, zones, assets, onClose }) {
+export default function ZoneInfoModal({ zoneId, zones, assets, activeAgents = {}, onClose }) {
   const [hoveredAgent, setHoveredAgent] = useState(null)
   if (!zoneId) return null
   const info    = ZONE_INFO[zoneId]
@@ -131,22 +182,18 @@ export default function ZoneInfoModal({ zoneId, zones, assets, onClose }) {
   const isFault = zState.health === 'FAULT'
   const faultMsg = zState.fault || null
   const zoneAgentKeys = ZONE_AGENTS[zoneId] || []
+  const activeAgentNames = Object.keys(activeAgents)
 
   return (
     <div className="zone-modal-overlay" onClick={onClose}>
-      <div className="zone-modal-3col" onClick={e => e.stopPropagation()}>
+      <div className="zone-modal-1col" onClick={e => e.stopPropagation()}>
 
-        {/* ── COL 1: GIS MAP ──────────────────────────────── */}
-        <div className="zm3-col zm3-map">
-          <div className="zm3-col-header">GIS Zone Map</div>
-          <div className="zm3-map-body">
-            <ZoneGISMap zoneId={zoneId} isFault={isFault} />
-          </div>
-        </div>
-
-        {/* ── COL 2: ZONE OVERVIEW ────────────────────────── */}
+        {/* ── ZONE OVERVIEW ───────────────────────────────── */}
         <div className="zm3-col zm3-overview">
-          <div className="zm3-col-header">Zone Overview</div>
+          <div className="zm3-col-header">
+            Zone Overview
+            <button className="zm3-close" onClick={onClose}>✕</button>
+          </div>
           <div className="zm3-overview-body">
 
             {/* Illustration + name */}
@@ -186,11 +233,16 @@ export default function ZoneInfoModal({ zoneId, zones, assets, onClose }) {
                   {zoneAgentKeys.map(key => {
                     const ag = ALL_AGENTS[key]
                     if (!ag) return null
+                    const isActive = activeAgentNames.includes(key)
                     return (
                       <div
                         key={key}
-                        className="zm3-agent-chip"
-                        style={{ borderColor: ag.color + '60', background: ag.color + '12' }}
+                        className={`zm3-agent-chip${isActive ? ' zm3-agent-chip-active' : ''}`}
+                        style={{
+                          borderColor: isActive ? ag.color : ag.color + '60',
+                          background: isActive ? ag.color + '22' : ag.color + '12',
+                          boxShadow: isActive ? `0 0 10px ${ag.color}44` : 'none',
+                        }}
                         onMouseEnter={() => setHoveredAgent(key)}
                         onMouseLeave={() => setHoveredAgent(null)}
                       >
@@ -199,10 +251,16 @@ export default function ZoneInfoModal({ zoneId, zones, assets, onClose }) {
                           <span className="zm3-agent-name" style={{ color: ag.color }}>{ag.name}</span>
                           <span className="zm3-agent-role">{ag.role}</span>
                         </div>
+                        {isActive && (
+                          <span className="zm3-agent-active-badge">ACTIVE</span>
+                        )}
                         {hoveredAgent === key && (
                           <div className="zm3-agent-tooltip">
                             <div className="zm3-tooltip-name" style={{ color: ag.color }}>{ag.icon} {ag.name}</div>
                             <div className="zm3-tooltip-desc">{ag.desc}</div>
+                            {isActive && activeAgents[key]?.task && (
+                              <div className="zm3-tooltip-task">▶ {activeAgents[key].task}</div>
+                            )}
                           </div>
                         )}
                       </div>
@@ -211,34 +269,6 @@ export default function ZoneInfoModal({ zoneId, zones, assets, onClose }) {
                 </div>
               </div>
             )}
-          </div>
-        </div>
-
-        {/* ── COL 3: ASSETS ───────────────────────────────── */}
-        <div className="zm3-col zm3-assets">
-          <div className="zm3-col-header">
-            Assets in this zone
-            <button className="zm3-close" onClick={onClose}>✕</button>
-          </div>
-          <div className="zm3-assets-body">
-            {info.assets.map(a => {
-              const ast = assets?.[a.id]
-              const isWarn = ast?.state === 'OPEN' || ast?.state === 'RESTARTING'
-              return (
-                <div key={a.id} className="zm3-asset-card">
-                  <div className="zm3-asset-header">
-                    <span className="zm3-asset-id">{a.id}</span>
-                    <span className="zm3-asset-type">{a.type}</span>
-                    {ast && (
-                      <span className={`zm3-asset-state ${isWarn ? 'zm3-state-warn' : 'zm3-state-ok'}`}>
-                        {ast.state}
-                      </span>
-                    )}
-                  </div>
-                  <p className="zm3-asset-role">{a.role}</p>
-                </div>
-              )
-            })}
           </div>
         </div>
 

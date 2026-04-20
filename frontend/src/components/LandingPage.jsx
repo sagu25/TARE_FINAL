@@ -173,22 +173,19 @@ const AGENT_TICKER = [
 
 // ── Agent Ticker Component ────────────────────────────────────────────────────
 function AgentTicker() {
-  // Duplicate items so the scroll loops seamlessly
   const items = [...AGENT_TICKER, ...AGENT_TICKER]
   return (
     <div className="lp-ticker-wrap">
-      <div className="lp-ticker-label">ACTIVE AGENTS</div>
+      <div className="lp-ticker-label">ACTIVE AGENTS · 13 SPECIALISED AI ENTITIES</div>
       <div className="lp-ticker-track">
         <div className="lp-ticker-inner">
           {items.map((a, i) => (
-            <div key={i} className="lp-ticker-item">
-              <span className="lp-ticker-icon">{a.icon}</span>
-              <span className="lp-ticker-name" style={{ color: a.color }}>{a.name}</span>
-              <span className="lp-ticker-zone">Z{a.zone.replace('Z','')}</span>
-              <span className="lp-ticker-role">{a.role}</span>
-              <span className="lp-ticker-sep">—</span>
-              <span className="lp-ticker-desc">{a.desc}</span>
-              <span className="lp-ticker-divider">⬡</span>
+            <div key={i} className="lp-ticker-card" style={{ borderColor: a.color + '40', '--agent-color': a.color }}>
+              <div className="lp-tc-icon">{a.icon}</div>
+              <div className="lp-tc-name" style={{ color: a.color }}>{a.name}</div>
+              <div className="lp-tc-zone">{a.zone}</div>
+              <div className="lp-tc-role">{a.role}</div>
+              <div className="lp-tc-desc">{a.desc}</div>
             </div>
           ))}
         </div>
@@ -404,10 +401,13 @@ export default function LandingPage({ onEnter }) {
           ))}
         </div>}
 
-        {/* Agent ticker — always scrolling */}
-        {ready && <AgentTicker />}
+      </div>
 
-        {/* Narration controls */}
+      {/* Agent ticker — direct child of landing-root: true 100% viewport width */}
+      {ready && <AgentTicker />}
+
+      {/* Bottom section: narration + CTA, re-centered */}
+      <div className="landing-hero landing-hero-bottom">
         {ready && <div className="lp-narration lp-reveal" style={d(2.5)}>
           <button className={`lp-nar-btn ${nar.playing && !nar.paused ? 'lp-nar-active' : ''}`}
             onClick={() => nar.playing ? narStop() : narStart(0)}
@@ -436,7 +436,6 @@ export default function LandingPage({ onEnter }) {
           {nar.paused && <span className="lp-nar-status lp-nar-paused-label">⏸ Paused</span>}
         </div>}
 
-        {/* CTA */}
         {ready && <div className="lp-cta-wrap lp-reveal" style={d(2.7)}>
           <button className="lp-cta" onClick={handleEnter}>
             <span>Launch Demo</span>
@@ -444,8 +443,8 @@ export default function LandingPage({ onEnter }) {
           </button>
           <div className="lp-cta-hint">6 LIVE SCENARIOS · REAL AI AGENT · AUTONOMOUS RESPONSE</div>
         </div>}
-
       </div>
+
     </div>
   )
 }

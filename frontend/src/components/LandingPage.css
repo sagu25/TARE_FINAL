@@ -78,13 +78,19 @@
 .landing-hero {
   position: relative;
   z-index: 2;
-  max-width: 960px;
+  width: 100%;
+  max-width: 1280px;
   margin: 0 auto;
-  padding: 80px 48px 100px;
+  padding: 80px 64px 40px;
   display: flex;
   flex-direction: column;
   align-items: center;
   text-align: center;
+  box-sizing: border-box;
+}
+.landing-hero-bottom {
+  padding-top: 32px;
+  padding-bottom: 100px;
 }
 
 /* ── Eyebrow ───────────────────────────────────────────────────────────────── */
@@ -319,7 +325,7 @@
   overflow: hidden;
   margin-bottom: 64px;
   width: 100%;
-  max-width: 660px;
+  max-width: 900px;
   background: #060d18;
 }
 .lp-stat {
@@ -508,38 +514,54 @@
 
 /* ── Agent Ticker ──────────────────────────────────────────────────────────── */
 .lp-ticker-wrap {
-  width: 100vw;
-  position: relative;
-  left: 50%;
-  right: 50%;
-  margin-left: -50vw;
-  margin-right: -50vw;
-  margin-top: 32px;
-  margin-bottom: 8px;
+  width: 100%;
   overflow: hidden;
-  border-top: 1px solid #00d4ff14;
-  border-bottom: 1px solid #00d4ff14;
-  background: linear-gradient(90deg, #04080f 0%, #061318 50%, #04080f 100%);
-  padding: 10px 0;
+  border-top: 1px solid #00d4ff25;
+  border-bottom: 1px solid #00d4ff25;
+  background: linear-gradient(180deg, #060e1a 0%, #04080f 100%);
+  padding: 18px 0 24px;
+  position: relative;
+  z-index: 2;
 }
 .lp-ticker-label {
   font-family: 'JetBrains Mono', monospace;
-  font-size: 9px;
-  letter-spacing: 0.2em;
+  font-size: 10px;
+  letter-spacing: 0.28em;
   color: #00d4ff;
   text-align: center;
-  margin-bottom: 6px;
-  opacity: 0.6;
+  margin-bottom: 14px;
+  opacity: 0.7;
 }
 .lp-ticker-track {
   overflow: hidden;
   width: 100%;
+  position: relative;
+}
+.lp-ticker-track::before,
+.lp-ticker-track::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 120px;
+  z-index: 2;
+  pointer-events: none;
+}
+.lp-ticker-track::before {
+  left: 0;
+  background: linear-gradient(90deg, #04080f 0%, transparent 100%);
+}
+.lp-ticker-track::after {
+  right: 0;
+  background: linear-gradient(270deg, #04080f 0%, transparent 100%);
 }
 .lp-ticker-inner {
   display: flex;
   flex-direction: row;
   width: max-content;
-  animation: ticker-scroll 55s linear infinite;
+  animation: ticker-scroll 60s linear infinite;
+  gap: 12px;
+  padding: 0 12px;
 }
 .lp-ticker-inner:hover {
   animation-play-state: paused;
@@ -548,47 +570,63 @@
   0%   { transform: translateX(0); }
   100% { transform: translateX(-50%); }
 }
-.lp-ticker-item {
-  display: inline-flex;
+
+/* ── Square agent cards ─────────────────────────────────── */
+.lp-ticker-card {
+  display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 7px;
-  padding: 0 18px;
-  white-space: nowrap;
+  justify-content: flex-start;
+  width: 160px;
+  height: 200px;
+  flex-shrink: 0;
+  background: #060d18;
+  border: 1px solid;
+  border-radius: 10px;
+  padding: 16px 12px 14px;
+  text-align: center;
+  gap: 6px;
+  cursor: default;
+  transition: background 0.2s;
+  overflow: hidden;
 }
-.lp-ticker-icon {
-  font-size: 13px;
+.lp-ticker-card:hover {
+  background: #0a1624;
 }
-.lp-ticker-name {
+.lp-tc-icon {
+  font-size: 30px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+.lp-tc-name {
   font-family: 'JetBrains Mono', monospace;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 700;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.1em;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
-.lp-ticker-zone {
+.lp-tc-zone {
   font-family: 'JetBrains Mono', monospace;
   font-size: 9px;
-  color: #2a5570;
-  background: #0a1a24;
-  border: 1px solid #1a3a50;
+  color: #3a7a94;
+  background: #071018;
+  border: 1px solid #0d2a3a;
   border-radius: 3px;
-  padding: 1px 5px;
-  letter-spacing: 0.1em;
+  padding: 2px 6px;
+  letter-spacing: 0.12em;
+  flex-shrink: 0;
 }
-.lp-ticker-role {
-  font-size: 11px;
-  color: #4a8fac;
-  font-style: italic;
-}
-.lp-ticker-sep {
-  color: #1a3a50;
-  font-size: 11px;
-}
-.lp-ticker-desc {
-  font-size: 11px;
-  color: #2a5570;
-}
-.lp-ticker-divider {
+.lp-tc-role {
   font-size: 10px;
-  color: #00d4ff22;
-  margin-left: 8px;
+  color: #5a9ab8;
+  font-style: italic;
+  line-height: 1.35;
+  width: 100%;
+}
+.lp-tc-desc {
+  font-size: 9.5px;
+  color: #3a7090;
+  line-height: 1.45;
+  width: 100%;
 }
