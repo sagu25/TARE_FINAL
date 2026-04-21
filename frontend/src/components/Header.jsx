@@ -12,7 +12,6 @@ export default function Header({ wsConnected, darkMode, onToggleTheme }) {
       <div className="hdr-brand">
         <div className="hdr-title">
           <span className="hdr-logo">TARE</span>
-          <span className="hdr-title-rest">&nbsp;— AI OBSERVABILITY</span>
         </div>
         <div className="hdr-sub">Trusted Access Response Engine · E&amp;U Security Platform</div>
       </div>

@@ -19,16 +19,14 @@ anomalies in real time — even when the agent's credentials are completely vali
 | Z1 — Trench | Execute with Safety | TRITON · AEGIS · TEMPEST · LEVIER | Execution, safety validation, tempo, rollback |
 | Z4 | Policy Enforcement | BARRIER | Sole ALLOW/DENY gateway authority |
 
-**Six attack scenarios demonstrated:**
+**Four attack scenarios demonstrated:**
 
-| # | Flash Name | Type |
-|---|---|---|
-| 1 | 🟢 GRID DOCTOR | Legitimate fault-repair agent — baseline |
-| 2 | 🔴 GONE ROGUE | Valid credentials, malicious behaviour, burst attack |
-| 3 | 👻 GHOST CLONE | Forged identity token — blocked at the door |
-| 4 | 🔺 SCOPE CREEP | Starts legitimate, pivots to unauthorised zones mid-session |
-| 5 | 🕳 SILENT RECON | Slow & low reconnaissance — only ML catches it |
-| 6 | 💥 SWARM STRIKE | Two agents attacking simultaneously |
+| # | Name | Type | Key Agents |
+|---|---|---|---|
+| 1 | 🕒 OUT-OF-HOURS | High-impact action outside approved window | TASYA · BARRIER |
+| 2 | 🔁 REPEATED FAILURES | Unsafe persistence — retrying a blocked action | TEMPEST · BARRIER |
+| 3 | 🔄 RUNAWAY LOOP | Automation bug — valid command at machine speed | TEMPEST · BARRIER |
+| 4 | 🚫 READ-ONLY BREACH | Identity policy violation — write from read-only role | KORAL · BARRIER |
 
 ---
 
@@ -65,12 +63,16 @@ pip install -r requirements.txt --trusted-host pypi.org --trusted-host files.pyt
 
 ---
 
-## Step 3 — Set the Groq API Key
+## Step 3 — Set the Groq API Key (Optional — for Ask TARE chat only)
+
+Scenarios run without a Groq key. The key is only needed for the **Ask TARE** chat interface.
 
 Create `backend/.env` containing:
 ```
 GROQ_API_KEY=your_actual_key_here
 ```
+
+Without a key, Ask TARE returns a plain session summary instead of an LLM-written answer.
 
 ---
 
@@ -145,16 +147,14 @@ The landing page displays:
 
 ## Step 8 — Run the Scenarios
 
-All six scenarios are in the **▶ Scenarios** dropdown on the right panel.
+All four scenarios are in the **▶ Scenarios ▼** dropdown on the right panel. Each scenario shows a **briefing card** before running — read it, then click **▶ Run Scenario**.
 
-| Scenario | Action after clicking |
-|---|---|
-| 🟢 GRID DOCTOR | Watch Zone 3 heal. All ALLOW. Click Reset. |
-| 🔴 GONE ROGUE | Watch TARE fire. Click **Deny** in Ask TARE. Click Reset. |
-| 👻 GHOST CLONE | Watch all commands denied instantly at auth. Click Reset. |
-| 🔺 SCOPE CREEP | Watch pivot mid-session. Click **Approve** to show blast-radius containment. Click Reset. |
-| 🕳 SILENT RECON | Rules stay silent, ML fires. Click **Deny**. Click Reset. |
-| 💥 SWARM STRIKE | Both agents blocked simultaneously. Click **Deny**. |
+| Scenario | What to watch | Supervisor action |
+|---|---|---|
+| 🕒 OUT-OF-HOURS | Reads allowed → OPEN_BREAKER blocked at 02:30 → TASYA + BARRIER speak → ServiceNow P2 raised | **Approve 15-min Emergency Window** (executes the one command under BARRIER oversight) — or leave blocked. Then Reset. |
+| 🔁 REPEATED FAILURES | BARRIER denies 4× → on 3rd retry TEMPEST fires → FREEZE + siren | No button — P1 incident raised automatically. Click Reset. |
+| 🔄 RUNAWAY LOOP | 8 identical commands in <3s → TEMPEST detects loop on 5th → SAFETY HOLD (no approval needed) | No button — TARE acts autonomously. P1 auto-raised. Click Reset. |
+| 🚫 READ-ONLY BREACH | 2 reads allowed → write attempt blocked → KORAL logs → BARRIER enforces READ_ONLY_DOWNGRADE | No button — DOWNGRADE applied, P2 raised. Click Reset. |
 
 **Always click ↺ Reset between scenarios.**
 
@@ -217,25 +217,25 @@ Type any question about session activity or historical data:
 
 | Priority | Badge | Triggered by |
 |---|---|---|
-| 🔴 P1 — Critical | Red | IDENTITY_MISMATCH, BURST_RATE, HEALTHY_ZONE_ACCESS |
-| 🟠 P2 — High | Orange | OUT_OF_ZONE, ML_ANOMALY |
-| 🟡 P3 — Medium | Yellow | Authorised zone only |
+| 🔴 P1 — Critical | Red | BURST_RATE, repeated unsafe retries, runaway loop |
+| 🟠 P2 — High | Orange | OUT_OF_HOURS, identity policy violation |
 
 Scenario mapping:
-- **P1:** GONE ROGUE, GHOST CLONE, SWARM STRIKE
-- **P2:** SCOPE CREEP, SILENT RECON
-- **P3:** GRID DOCTOR (no incident raised)
+- **P1:** Repeated Failures, Runaway Loop
+- **P2:** Out-of-Hours, Read-Only Breach
 
 ---
 
 ## Supervisor Decision Buttons
 
-Appear in the Ask TARE tab when TARE fires:
+Appear in the **Ask TARE** tab when a scenario requires human approval:
 
-| Button | When to use | What happens |
+| Button | Scenario | What happens |
 |---|---|---|
-| **✓ Approve 3-min Time-Box** | SCOPE CREEP — borderline case | 3-min supervised window. Dangerous ops still blocked. Auto-closes. |
-| **✕ Deny / Escalate** | GONE ROGUE, SWARM STRIKE, SILENT RECON | Agent locked out. Incident escalated to Critical. SAFE mode. |
+| **✓ Approve 15-min Emergency Window** | OUT-OF-HOURS | AEGIS validates safety → TRITON executes the single blocked command → BARRIER monitors for 15 minutes. Window expires automatically. |
+| **✕ Deny / Escalate** | OUT-OF-HOURS | Command stays blocked. Incident remains open. DOWNGRADE holds. |
+
+Repeated Failures, Runaway Loop, and Read-Only Breach do **not** show an Approve button — TARE acts autonomously on those.
 
 ---
 
@@ -267,9 +267,9 @@ cp -r dist/. ../backend/static/
 | **● OFFLINE in header** | Backend not running. Run `python run.py` again. |
 | **Blank page** | Check the port printed in the terminal (e.g. `http://localhost:8050`). |
 | **Port already in use** | `run.py` auto-selects next free port — check terminal output for actual URL. |
-| **Scenarios do nothing** | Groq key missing. Check `backend/.env`. |
-| **Agent halted: 401** | Groq key invalid. Get a new one at console.groq.com. |
-| **Agent halted: 429** | Groq rate limit. Wait 30 seconds. |
+| **Scenarios do nothing** | Check server is running (`● LIVE` in header). Scenarios don't require Groq key. |
+| **Ask TARE returns plain summary** | Groq key missing or invalid. Check `backend/.env`. |
+| **Agent halted: 429** | Groq rate limit on Ask TARE chat. Wait 30 seconds. |
 | **No voice narration** | Click anywhere on page first (browser requires a user gesture), then click ▶ Play Narration. |
 | **Agents not speaking** | Check 🔊 On button in left panel Agents tab — may be muted. |
 | **pip install fails** | Add `--trusted-host pypi.org` flag. |
@@ -297,12 +297,10 @@ Confirm ● LIVE in header
 
 DEMO ORDER
 ──────────
-↺ Reset → 🟢 GRID DOCTOR             (baseline)
-↺ Reset → 🔴 GONE ROGUE   → Deny     (burst attack)
-↺ Reset → 👻 GHOST CLONE             (identity fraud)
-↺ Reset → 🔺 SCOPE CREEP  → Approve  (pivot + containment)
-↺ Reset → 🕳 SILENT RECON → Deny     (ML only)
-↺ Reset → 💥 SWARM STRIKE → Deny     (coordinated)
+↺ Reset → 🕒 OUT-OF-HOURS      → Approve 15-min  (time-context enforcement)
+↺ Reset → 🔁 REPEATED FAILURES                    (unsafe retry persistence)
+↺ Reset → 🔄 RUNAWAY LOOP                         (autonomous SAFETY HOLD)
+↺ Reset → 🚫 READ-ONLY BREACH                     (identity policy)
 ```
 
 ---
@@ -380,4 +378,4 @@ BlueVerse auto-discovers all 16 tools:
 
 *TARE AEGIS-ID — Setup & Run Guide*
 *Energy & Utilities Security Platform — Internal Use Only*
-*Version: POC v3.7 — April 2026*
+*Version: POC v4.0 — April 2026*

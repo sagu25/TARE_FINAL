@@ -7,6 +7,8 @@ const ZONE_POS = {
   Z1: { cx: 490, cy: 235 },
 }
 
+const ZONE_TIER = { Z1: 'TRENCH', Z2: 'SHELF', Z3: 'REEF' }
+
 // All three interconnected
 const LINKS = [
   { from:'Z3', to:'Z2', id:'l32' },
@@ -133,11 +135,16 @@ export default function ZoneObservatory({ zones, assets, accessLog, mode, darkMo
                   style={{ transition: 'stroke 0.4s, stroke-width 0.4s' }}
                 />
                 {/* Zone name — clickable */}
-                <text x={pos.cx} y={pos.cy + 6} className="zone-id-lbl zone-id-clickable"
+                <text x={pos.cx} y={pos.cy - 2} className="zone-id-lbl zone-id-clickable"
                   fill={col.text}
                   onClick={() => onZoneClick?.(zone.id)}
                   style={{ cursor:'pointer', transition:'fill 0.4s' }}>
                   {ZONE_DISPLAY[zone.id] || zone.id}
+                </text>
+                {/* Zone tier label */}
+                <text x={pos.cx} y={pos.cy + 13}
+                  style={{ fontFamily:'var(--font-mono)', fontSize:'8px', fill:col.text, textAnchor:'middle', letterSpacing:'0.12em', opacity:0.6, pointerEvents:'none' }}>
+                  {ZONE_TIER[zone.id]}
                 </text>
 
                 {/* Attack badge */}
