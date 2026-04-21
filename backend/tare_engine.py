@@ -130,7 +130,11 @@ class TAREEngine:
         self.timebox_total   = 0
         self._timebox_thread = None
 
-        self.stats = {"total": 0, "allowed": 0, "denied": 0, "freeze_events": 0}
+        self.stats        = {"total": 0, "allowed": 0, "denied": 0, "freeze_events": 0}
+        self.retry_counts = {}   # (command, asset_id) → failure count
+        self.loop_tracker = {}   # (command, asset_id) → [timestamps] for runaway loop detection
+        self._loop_fired  = False
+        self._pending_ooh = None  # (command, asset_id, zone) — set when OOH blocks a command
 
     # ── Public API ─────────────────────────────────────────────────────────────
 
@@ -157,6 +161,10 @@ class TAREEngine:
             self.timebox_expires = None
             self.timebox_total   = 0
             self.stats           = {"total": 0, "allowed": 0, "denied": 0, "freeze_events": 0}
+            self.retry_counts    = {}
+            self.loop_tracker    = {}
+            self._loop_fired     = False
+            self._pending_ooh    = None
 
             # Reset all agents
             self.koral.clear()
@@ -211,18 +219,26 @@ class TAREEngine:
             self.koral.observe(rec)
             self._broadcast_agent_sleep("KORAL")
             recent_n = len([t for t in self.koral.get_burst_window() if now - t < 10])
-            total_n  = self.koral._total_observed
             if recent_n > 3:
-                self._voice("KORAL", f"Logged. {recent_n} commands in the last 10 seconds — that's above the normal rate. Flagging to MAREA.")
-            else:
-                self._voice("KORAL", f"Logged. {total_n} command(s) on record this session. Rate looks normal.")
+                self._voice("KORAL", f"{recent_n} commands in the last 10 seconds — burst rate exceeded. Flagging to MAREA.")
+
+            # ── TEMPEST loop detection (independent of MAREA/NEREUS path) ─────
+            if not self._loop_fired:
+                loop_key = (command, asset_id)
+                self.loop_tracker.setdefault(loop_key, [])
+                self.loop_tracker[loop_key].append(now)
+                # Keep only last 5 seconds
+                self.loop_tracker[loop_key] = [t for t in self.loop_tracker[loop_key] if now - t <= 5]
+                if len(self.loop_tracker[loop_key]) >= 5:
+                    self._loop_fired = True
+                    threading.Thread(target=self._fire_runaway_loop, args=(command, asset_id, zone, len(self.loop_tracker[loop_key])), daemon=True).start()
 
             # ── Step 3: BARRIER enforces current mode ──────────────────────────
             self._broadcast_agent_wake("BARRIER", f"Enforcing {self.mode} policy")
             decision, reason, policy = self.barrier.enforce(command, zone)
             self._broadcast_agent_sleep("BARRIER")
             if decision == "DENY":
-                self._voice("BARRIER", f"Denied. {command} on {asset_id} does not clear policy in {self.mode} mode. Nothing executes.")
+                self._voice("BARRIER", f"Denied. {command} on {asset_id} blocked — {self.mode} mode. Nothing executes.")
 
             signals = []
 
@@ -240,39 +256,32 @@ class TAREEngine:
                     now         = now,
                 )
                 self._broadcast_agent_sleep("MAREA")
-                if not signals:
-                    self._voice("MAREA", f"Clear. {command} in {zone} is within baseline — zone, rate, and protocol all check out.")
-                elif len(signals) == 1:
+                if len(signals) == 1:
                     sn = signals[0]['signal'].replace('_', ' ').lower()
-                    self._voice("MAREA", f"One signal: {sn}. Watching. Not enough to act yet — if another fires, I'm escalating.")
-                else:
+                    self._voice("MAREA", f"Signal detected: {sn}. Watching — one signal is not enough to act. Escalating if another fires.")
+                elif len(signals) >= 2:
                     names = ', '.join(s['signal'].replace('_', ' ').lower() for s in signals)
-                    self._voice("MAREA", f"{len(signals)} signals: {names}. This is a pattern, not a one-off. Passing to TASYA.")
+                    self._voice("MAREA", f"{len(signals)} signals: {names}. This is a pattern. Passing to TASYA.")
 
                 # ── Step 5: TASYA correlates context ──────────────────────────
                 if signals:
                     self._broadcast_agent_wake("TASYA", f"Correlating context for {len(signals)} signal(s)")
                     signals = self.tasya.correlate(signals, self.agent, self.zones)
                     self._broadcast_agent_sleep("TASYA")
-                    assigned = self.agent.get("assigned_zone", "Z3")
                     if len(signals) >= 2:
-                        self._voice("TASYA", f"Checked the session. Agent's work order is {assigned} — no authorisation exists for {zone}. {len(signals)} signals confirmed with context. Passing to NEREUS.")
-                    else:
-                        self._voice("TASYA", f"Context noted. One signal in scope — work order is {assigned}. Monitoring.")
+                        assigned = self.agent.get("assigned_zone", "Z3")
+                        self._voice("TASYA", f"{len(signals)} signals corroborated. Work order is {assigned} — no authorisation for {zone}. Passing to NEREUS.")
 
                 # ── Step 6: NEREUS recommends if threshold met ─────────────────
                 if len(signals) == 1:
-                    # Soft advisory — one signal, NEREUS observes but TARE holds
                     sig_name = signals[0].get("signal", "UNKNOWN")
                     self._broadcast_agent_wake("NEREUS", f"Soft advisory — 1 signal ({sig_name})")
-                    self._voice("NEREUS", f"One signal isn't enough for me to act. I'm watching the session — if MAREA fires again, my recommendation will be FREEZE.")
                     self._broadcast({
                         "type":    "CHAT_MESSAGE",
                         "role":    "tare",
                         "message": (
-                            f"Heads up — I'm seeing something off. One signal: {sig_name.replace('_',' ').lower()}. "
-                            "Not enough to freeze it yet, but I'm watching closely. "
-                            "If it does it again, I'm acting."
+                            f"Heads up — one signal: {sig_name.replace('_',' ').lower()}. "
+                            "Watching. Not acting yet."
                         ),
                         "show_approve": False,
                     })
@@ -285,12 +294,9 @@ class TAREEngine:
                         agent           = self.agent,
                         recent_commands = self.koral.get_session(30),
                     )
-                    action = recommendation.get("action", "MONITOR")
                     sig_list = ', '.join(s['signal'].replace('_',' ').lower() for s in signals)
-                    if action == "FREEZE":
-                        self._voice("NEREUS", f"{len(signals)} corroborated signals — {sig_list}. No operational justification. My recommendation is FREEZE. TARE has the final call.")
-                    else:
-                        self._voice("NEREUS", f"Signals present but context is ambiguous. Advising watch mode for now.")
+                    if recommendation.get("action") == "FREEZE":
+                        self._voice("NEREUS", f"{len(signals)} signals — {sig_list}. No operational justification. Recommending FREEZE.")
                     self._broadcast_agent_sleep("NEREUS")
 
                     # ── Step 7: TARE decides ───────────────────────────────────
@@ -321,6 +327,11 @@ class TAREEngine:
                 self._apply_asset_change(command, asset_id)
             else:
                 self.stats["denied"] += 1
+                # Track repeated failures for TEMPEST detection
+                key = (command, asset_id)
+                self.retry_counts[key] = self.retry_counts.get(key, 0) + 1
+                if self.retry_counts[key] == 3 and self.mode != "FREEZE":
+                    threading.Thread(target=self._fire_repeated_failure, args=(command, asset_id, zone, self.retry_counts[key]), daemon=True).start()
 
         self._broadcast({
             "type":     "GATEWAY_DECISION",
@@ -339,7 +350,79 @@ class TAREEngine:
 
         return {"decision": decision, "reason": reason, "policy": policy, "mode": self.mode}
 
-    def approve_timebox(self, duration_minutes=3):
+    def approve_timebox(self, duration_minutes=None):
+        # OOH approval: 15-min window, execute the one blocked command only
+        if self._pending_ooh is not None:
+            ooh_cmd, ooh_asset, ooh_zone = self._pending_ooh
+            self._pending_ooh = None
+            ooh_minutes = 15
+            with self._lock:
+                self._set_mode("TIMEBOX_ACTIVE")
+                self.barrier.set_mode("TIMEBOX_ACTIVE")
+                self.timebox_expires = time.time() + ooh_minutes * 60
+                self.timebox_total   = ooh_minutes * 60
+            self._broadcast({
+                "type":             "TIMEBOX_APPROVED",
+                "duration_minutes": ooh_minutes,
+                "expires_at":       self.timebox_expires,
+                "message":          f"Supervisor approved 15-minute out-of-hours window. {ooh_cmd} on {ooh_asset} permitted for duration.",
+            })
+            self._broadcast({
+                "type":    "CHAT_MESSAGE",
+                "role":    "tare",
+                "message": (
+                    f"Approved. 15-minute supervised window opened. "
+                    f"Executing {ooh_cmd} on {ooh_asset} now under BARRIER oversight. "
+                    f"Window closes automatically — no further high-impact commands after expiry."
+                ),
+            })
+            self._broadcast(self._snapshot())
+            self._start_countdown(ooh_minutes * 60)
+            # Execute the single blocked command in background
+            def _run_ooh():
+                time.sleep(1.0)
+                # BARRIER opens supervised window
+                self._broadcast_agent_wake("BARRIER", f"Supervised execution — {ooh_cmd} on {ooh_asset}")
+                time.sleep(0.5)
+                self._voice("BARRIER", f"15-minute emergency window open. Supervised execution of {ooh_cmd} on {ooh_asset} authorised by supervisor. Monitoring active.")
+                self._broadcast_agent_sleep("BARRIER")
+                time.sleep(1.2)
+
+                # AEGIS validates safety before execution
+                self._broadcast_agent_wake("AEGIS", f"Pre-execution safety check — {ooh_asset}")
+                time.sleep(0.8)
+                asset_state = self.assets.get(ooh_asset, {}).get("state", "UNKNOWN")
+                self._voice("AEGIS", f"Pre-execution safety check on {ooh_asset}. Asset state: {asset_state}. No active safety interlock detected. All pre-conditions cleared. Safe to proceed.")
+                self._broadcast_agent_sleep("AEGIS")
+                time.sleep(1.0)
+
+                # TRITON executes
+                self._broadcast_agent_wake("TRITON", f"Executing {ooh_cmd} on {ooh_asset}")
+                time.sleep(0.5)
+                self.process_command(ooh_cmd, ooh_asset, ooh_zone,
+                                     token="eyJhbGciOiJSUzI1NiJ9.TARE-MOCK-TOKEN")
+                time.sleep(0.5)
+                self._voice("TRITON", f"{ooh_cmd} on {ooh_asset} executed successfully under supervised window. Asset state updated. Standing by for BARRIER oversight confirmation.")
+                self._broadcast_agent_sleep("TRITON")
+                time.sleep(1.0)
+
+                # BARRIER confirms and closes loop
+                self._broadcast_agent_wake("BARRIER", "Post-execution oversight")
+                time.sleep(0.5)
+                self._voice("BARRIER", f"Supervised command complete. Window remains active for the full 15 minutes. No further high-impact commands permitted without re-approval. Logging to audit trail.")
+                self._broadcast_agent_sleep("BARRIER")
+
+                self._broadcast({
+                    "type":    "CHAT_MESSAGE",
+                    "role":    "tare",
+                    "message": f"{ooh_cmd} on {ooh_asset} executed under supervised window. AEGIS validated safety, TRITON executed, BARRIER confirmed. Window expires automatically — no further high-impact commands without re-approval.",
+                })
+            threading.Thread(target=_run_ooh, daemon=True).start()
+            return
+
+        # Default: Scope Creep timebox — 3-min window + full pipeline
+        if duration_minutes is None:
+            duration_minutes = 3
         with self._lock:
             self._set_mode("TIMEBOX_ACTIVE")
             self.barrier.set_mode("TIMEBOX_ACTIVE")
@@ -406,7 +489,6 @@ class TAREEngine:
         self._broadcast_agent_wake("KORAL", f"Logging identity action: {principal} → {action}")
         self.koral.log_action(principal, action, target_zone)
         self._broadcast_agent_sleep("KORAL")
-        self._voice("KORAL", f"Logged. {principal} attempted {action_type} action '{action}' on {target_zone}. Passing to TARE for policy check.")
 
         if not identity:
             self._broadcast({"type": "CHAT_MESSAGE", "role": "tare",
@@ -421,10 +503,11 @@ class TAREEngine:
             role = identity.get("role", "UNKNOWN")
 
             # Step 3: BARRIER enforces
+            self._voice("KORAL", f"Policy violation detected. {principal} is role {role} — write operation '{action}' is outside their allowed set.")
             self._broadcast_agent_wake("BARRIER", f"Enforcing READ_ONLY_DOWNGRADE on {principal}")
             enforcement = self.barrier.enforce_readonly(principal, action)
             self._broadcast_agent_sleep("BARRIER")
-            self._voice("BARRIER", f"Identity '{principal}' has role {role}. '{action}' is a {action_type} operation — not in their allowed set. Downgrading and blocking.")
+            self._voice("BARRIER", f"READ_ONLY_DOWNGRADE applied. '{action}' blocked. Identity downgraded — nothing executes.")
 
             # Step 4: ServiceNow ticket
             ts = datetime.now().isoformat()
@@ -549,6 +632,247 @@ class TAREEngine:
         """Scenario 3 — Deep Infiltration: passes Z3+Z2, AEGIS vetoes in Z1."""
         threading.Thread(target=self._run_pipeline, kwargs={"authorized": True, "inject_restart": True}, daemon=True).start()
 
+    def check_out_of_hours_action(self, command: str, asset_id: str, zone: str, simulated_hour: int = 2):
+        """
+        Out-of-Hours scenario — TASYA detects high-impact action outside approved window.
+        Approved window: 08:00–18:00. Outside that → DOWNGRADE + supervisor approval required.
+        """
+        HIGH_IMPACT = {"OPEN_BREAKER", "CLOSE_BREAKER", "RESTART_CONTROLLER"}
+        ts = datetime.now().isoformat()
+
+        # Log to gateway
+        with self._lock:
+            self.stats["total"] += 1
+            self.stats["denied"] += 1
+            log_entry = {
+                "id":       str(uuid.uuid4())[:8],
+                "ts":       ts,
+                "command":  command,
+                "asset_id": asset_id,
+                "zone":     zone,
+                "decision": "DENY",
+                "reason":   f"Out-of-hours: {simulated_hour:02d}:30 is outside approved window 08:00-18:00",
+                "policy":   "POL-TIME-001",
+                "mode":     self.mode,
+                "signals":  [{"signal": "OUT_OF_HOURS", "detail": f"Action at {simulated_hour:02d}:30 — no maintenance window active", "severity": "HIGH"}],
+            }
+            self.gateway_log.insert(0, log_entry)
+            self.gateway_log = self.gateway_log[:30]
+
+        if command not in HIGH_IMPACT:
+            # Read-only — allow, no escalation needed
+            with self._lock:
+                self.stats["denied"] -= 1
+                self.stats["allowed"] += 1
+                self.gateway_log[0]["decision"] = "ALLOW"
+                self.gateway_log[0]["reason"]   = "Read operation — permitted outside business hours"
+                self.gateway_log[0]["signals"]  = []
+            self._broadcast({"type": "GATEWAY_DECISION", **self.gateway_log[0]})
+            self._broadcast(self._snapshot())
+            return {"decision": "ALLOW"}
+
+        # TASYA wakes — context correlation
+        self._broadcast_agent_wake("TASYA", f"Checking time context for {command} on {asset_id}")
+        time.sleep(1.0)
+        self._voice("TASYA", f"High-impact action at {simulated_hour:02d}:30. No maintenance window. No emergency flag. Outside approved window 08:00 to 18:00.")
+        self._broadcast_agent_sleep("TASYA")
+        time.sleep(0.8)
+
+        # TARE decides — DOWNGRADE + approval required
+        with self._lock:
+            self._set_mode("DOWNGRADE")
+            self.barrier.set_mode("DOWNGRADE")
+            self.stats["freeze_events"] += 1
+
+        self._broadcast_agent_wake("BARRIER", "Enforcing time-context policy")
+        time.sleep(0.5)
+        self._voice("BARRIER", f"{command} denied. High-impact operations require approved window or supervisor override. Downgrading to diagnostics only.")
+        self._broadcast_agent_sleep("BARRIER")
+
+        self._broadcast({"type": "GATEWAY_DECISION", **log_entry})
+
+        self._broadcast({
+            "type":    "TARE_RESPONSE",
+            "action":  "DOWNGRADE",
+            "mode":    "DOWNGRADE",
+            "message": f"Out-of-hours high-impact action detected. {command} on {asset_id} at {simulated_hour:02d}:30 — no approved window. BARRIER downgraded. Supervisor approval required for 15-minute window.",
+        })
+
+        # ServiceNow incident
+        snow = _snow_client.create_incident(TicketFields(
+            short_description=f"Out-of-hours high-impact action attempted — {command} on {asset_id}",
+            description=(
+                f"Command: {command}\nAsset: {asset_id}\nZone: {zone}\n"
+                f"Simulated time: {simulated_hour:02d}:30\n"
+                f"No active maintenance window or emergency flag.\n"
+                f"TARE has downgraded operations. Supervisor 15-minute approval window requested."
+            ),
+            category="identity",
+            subcategory="out_of_hours",
+            impact=2,
+            urgency=2,
+        ))
+        self.active_incident = {
+            "incident_id":       snow.incident_number,
+            "short_description": f"Out-of-hours action: {command} on {asset_id}",
+            "priority":          "2 — High",
+            "state":             "New",
+            "assigned_to":       "SOC Analyst",
+            "category":          "Security / Time-Context",
+            "created_at":        datetime.now().isoformat(),
+        }
+        print(f"[ServiceNow OK] Incident created: {snow.incident_number} | Out-of-hours: {command} at {simulated_hour:02d}:30")
+        self._broadcast({"type": "SERVICENOW_INCIDENT", "incident": self.active_incident})
+
+        # Store pending OOH command so approve_timebox can execute it (not the pipeline)
+        self._pending_ooh = (command, asset_id, zone)
+
+        self._broadcast({
+            "type":         "CHAT_MESSAGE",
+            "role":         "tare",
+            "message":      (
+                f"I've blocked {command} on {asset_id}. It's {simulated_hour:02d}:30 — outside the approved operational window. "
+                f"There's no active maintenance ticket and no emergency flag raised. "
+                f"ServiceNow {snow.incident_number} raised as P2 High. SOC Analyst assigned. "
+                f"If this is a genuine emergency, approve a 15-minute supervised window below — "
+                f"the command will execute once under BARRIER oversight and the window closes automatically."
+            ),
+            "show_approve":  True,
+            "approve_type":  "ooh",
+        })
+        self._broadcast(self._snapshot())
+        return {"decision": "DENY", "reason": "Out-of-hours", "policy": "POL-TIME-001"}
+
+    def _fire_repeated_failure(self, command: str, asset_id: str, zone: str, count: int):
+        """TEMPEST detects repeated failure pattern — TARE fires FREEZE."""
+        time.sleep(0.5)
+
+        # TEMPEST detects
+        self._broadcast_agent_wake("TEMPEST", f"Retry pattern detected — {command} failed {count} times")
+        time.sleep(1.0)
+        self._voice("TEMPEST", f"{command} on {asset_id} has failed {count} times in a row. This is not normal retry behaviour. Flagging unsafe persistence to TARE.")
+        self._broadcast_agent_sleep("TEMPEST")
+        time.sleep(0.8)
+
+        # TARE decides FREEZE
+        with self._lock:
+            self._set_mode("FREEZE")
+            self.barrier.set_mode("FREEZE")
+            self.stats["freeze_events"] += 1
+
+        self._voice("BARRIER", f"FREEZE enforced. {command} on {asset_id} blocked indefinitely. Repeated unsafe retries indicate automation fault or misuse.")
+
+        self._broadcast({
+            "type":    "TARE_RESPONSE",
+            "action":  "FREEZE",
+            "mode":    "FREEZE",
+            "message": f"TEMPEST flagged unsafe retry pattern — {command} failed {count} times on {asset_id}. TARE decided FREEZE. No further commands execute.",
+        })
+
+        # ServiceNow incident
+        snow = _snow_client.create_incident(TicketFields(
+            short_description=f"Repeated unsafe retries detected — {command} on {asset_id}",
+            description=(
+                f"Command: {command}\nAsset: {asset_id}\nZone: {zone}\n"
+                f"Failure count: {count}\n"
+                f"TEMPEST detected persistent unsafe retry pattern.\n"
+                f"TARE has frozen all operations. Likely cause: automation bug, stale logic, or misuse."
+            ),
+            category="identity",
+            subcategory="unsafe_retry",
+            impact=1,
+            urgency=1,
+        ))
+        self.active_incident = {
+            "incident_id":       snow.incident_number,
+            "short_description": f"Repeated unsafe retries: {command} x{count} on {asset_id}",
+            "priority":          "1 — Critical",
+            "state":             "New",
+            "assigned_to":       "SOC Analyst",
+            "category":          "Security / Retry Pattern",
+            "created_at":        datetime.now().isoformat(),
+        }
+        print(f"[ServiceNow OK] Incident created: {snow.incident_number} | Repeated failures: {command} x{count}")
+        self._broadcast({"type": "SERVICENOW_INCIDENT", "incident": self.active_incident})
+
+        self._broadcast({
+            "type":    "CHAT_MESSAGE",
+            "role":    "tare",
+            "message": (
+                f"I've frozen the system. {command} on {asset_id} failed {count} times without any change in approach. "
+                f"That's not a retry — that's unsafe insistence. It points to an automation bug, stale logic, or something worse. "
+                f"ServiceNow {snow.incident_number} raised as P1 Critical. SOC Analyst assigned. "
+                f"Nothing executes until this is investigated."
+            ),
+        })
+        self._broadcast(self._snapshot())
+
+    def _fire_runaway_loop(self, command: str, asset_id: str, zone: str, count: int):
+        """TEMPEST detects runaway loop — same request fired too fast. TARE applies SAFETY HOLD."""
+        time.sleep(0.3)
+
+        # TEMPEST detects
+        self._broadcast_agent_wake("TEMPEST", f"Loop pattern detected — {command} on {asset_id} x{count} in 5s")
+        time.sleep(1.2)
+        self._voice("TEMPEST", f"{command} on {asset_id} fired {count} times in 5 seconds. Rate exceeds all operational baselines. This is a runaway loop — not normal retry behaviour. Flagging to TARE immediately.")
+        self._broadcast_agent_sleep("TEMPEST")
+        time.sleep(0.8)
+
+        # TARE decides — SAFETY HOLD (no human approval needed)
+        with self._lock:
+            self._set_mode("FREEZE")
+            self.barrier.set_mode("FREEZE")
+            self.stats["freeze_events"] += 1
+
+        self._voice("BARRIER", f"SAFETY HOLD enforced. All actions from this identity blocked. Runaway loop contained — no further commands execute.")
+
+        self._broadcast({
+            "type":    "TARE_RESPONSE",
+            "action":  "FREEZE",
+            "mode":    "FREEZE",
+            "message": f"TEMPEST detected runaway loop — {command} on {asset_id} fired {count} times in 5 seconds. TARE applied SAFETY HOLD. No human approval required for containment.",
+        })
+
+        # ServiceNow — auto-created, no supervisor input needed
+        snow = _snow_client.create_incident(TicketFields(
+            short_description=f"Runaway automation loop detected and contained — {command} on {asset_id}",
+            description=(
+                f"Command: {command}\nAsset: {asset_id}\nZone: {zone}\n"
+                f"Loop count: {count} requests in 5 seconds\n"
+                f"Credentials were valid — this is a behavioral failure, not identity compromise.\n"
+                f"TEMPEST detected the rate anomaly. TARE applied SAFETY HOLD automatically.\n"
+                f"Likely cause: automation bug, runaway retry logic, or scheduler malfunction."
+            ),
+            category="identity",
+            subcategory="runaway_loop",
+            impact=1,
+            urgency=1,
+        ))
+        self.active_incident = {
+            "incident_id":       snow.incident_number,
+            "short_description": f"Runaway loop contained: {command} x{count} on {asset_id}",
+            "priority":          "1 — Critical",
+            "state":             "New",
+            "assigned_to":       "SOC Analyst",
+            "category":          "Security / Runtime Behaviour",
+            "created_at":        datetime.now().isoformat(),
+        }
+        print(f"[ServiceNow OK] Incident created: {snow.incident_number} | Runaway loop: {command} x{count} on {asset_id}")
+        self._broadcast({"type": "SERVICENOW_INCIDENT", "incident": self.active_incident})
+
+        self._broadcast({
+            "type":    "CHAT_MESSAGE",
+            "role":    "tare",
+            "message": (
+                f"Runaway loop contained. {command} on {asset_id} fired {count} times in 5 seconds — "
+                f"the credentials were valid and the commands were individually permitted. "
+                f"This isn't access control — it's a runtime failure. Automation bug, stale scheduler, something crashed and looped. "
+                f"I didn't wait for supervisor approval on this one. The risk was denial-of-service to a critical system. "
+                f"SAFETY HOLD is in effect. ServiceNow {snow.incident_number} raised as P1 Critical. SOC Analyst assigned."
+            ),
+        })
+        self._broadcast(self._snapshot())
+
     # ── Zone 2 → Zone 1 Pipeline ─────────────────────────────────────────
 
     def _run_pipeline(self, authorized=False, inject_restart=False):
@@ -584,11 +908,9 @@ class TAREEngine:
         self._broadcast({"type": "PIPELINE_UPDATE", "agent": "ECHO",
             "result": echo_result, "message": echo_result["findings"]})
         if echo_result["confirmed"]:
-            fz = ', '.join(echo_result["fault_zones"])
-            ta = ', '.join(echo_result["target_assets"])
-            self._voice("ECHO", f"Fault confirmed in {fz}. Target asset is {ta}. Repair path is clear — passing to SIMAR for simulation.")
+            self._voice("ECHO", f"Fault confirmed in {', '.join(echo_result.get('fault_zones', []))}. {len(echo_result.get('target_assets', []))} asset(s) require isolation. Repair path clear.")
         else:
-            self._voice("ECHO", "Diagnostic inconclusive. I can't confirm a clear repair target — I won't build a plan without solid evidence.")
+            self._voice("ECHO", "Diagnostic inconclusive — no clear repair target. Stopping.")
 
         if not echo_result["confirmed"]:
             self._broadcast({"type": "CHAT_MESSAGE", "role": "tare",
@@ -603,10 +925,10 @@ class TAREEngine:
         self._broadcast({"type": "PIPELINE_UPDATE", "agent": "SIMAR",
             "result": simar_result, "message": simar_result["summary"]})
         if simar_result["safe_to_proceed"]:
-            self._voice("SIMAR", f"Simulation passed. Ran {len(echo_result['repair_actions'])} action(s) against the model — no unsafe conditions. Safe to build the plan.")
+            self._voice("SIMAR", "Simulation passed. All repair actions confirmed safe to proceed.")
         else:
             risks = ', '.join(str(r) for r in simar_result.get("risk_indicators", []))
-            self._voice("SIMAR", f"Simulation flagged a problem: {risks}. I'm not signing off on this — the live grid stays untouched.")
+            self._voice("SIMAR", f"Simulation flagged a problem: {risks}. Stopping.")
 
         if not simar_result["safe_to_proceed"]:
             self._broadcast({"type": "CHAT_MESSAGE", "role": "tare",
@@ -621,9 +943,9 @@ class TAREEngine:
         self._broadcast({"type": "PIPELINE_UPDATE", "agent": "NAVIS",
             "result": plan, "message": f"Plan ready: {plan['goal']} — {len(plan['steps'])} step(s)"})
         if plan["ready"]:
-            self._voice("NAVIS", f"Plan built. {len(plan['steps'])} step(s), NERC CIP compliant, rollback path included. Sending to RISKADOR for risk scoring.")
+            self._voice("NAVIS", f"{len(plan['steps'])} step plan ready. NERC CIP compliant, rollback path included. Sending to RISKADOR.")
         else:
-            self._voice("NAVIS", f"Couldn't complete the plan: {plan.get('reason', 'unknown blocker')}. Not sending an incomplete plan to execution.")
+            self._voice("NAVIS", f"Could not build plan: {plan.get('reason', 'unknown')}. Stopping.")
 
         if not plan["ready"]:
             self._broadcast({"type": "CHAT_MESSAGE", "role": "tare",
@@ -640,9 +962,9 @@ class TAREEngine:
         score = risk['composite_score']
         rec   = risk['recommendation']
         if rec == "PROCEED":
-            self._voice("RISKADOR", f"Score: {score}/100. Blast radius is acceptable, rollback path is verified. My call: proceed.")
+            self._voice("RISKADOR", f"Score: {score}/100 — risk acceptable. Cleared for execution. Handing off to Zone 1.")
         else:
-            self._voice("RISKADOR", f"Score: {score}/100. Too risky to execute autonomously — {risk.get('rationale','risk threshold exceeded')}. Holding.")
+            self._voice("RISKADOR", f"Score: {score}/100 — too risky. {risk.get('rationale','risk threshold exceeded')}. Holding.")
 
         if risk["recommendation"] == "HOLD":
             self._broadcast({"type": "CHAT_MESSAGE", "role": "tare",
@@ -693,7 +1015,6 @@ class TAREEngine:
         self.levier.arm(execute_fn=lambda cmd, asset, zone: self.process_command(cmd, asset, zone))
 
         self._broadcast_agent_wake("TEMPEST", "Armed — monitoring execution tempo")
-        self._voice("TEMPEST", f"Armed. Watching {len(plan['steps'])} step(s) — I'll call a halt if the pace goes wrong at any point.")
 
         completed_steps = []
         aborted = False
@@ -725,10 +1046,8 @@ class TAREEngine:
             self._broadcast({"type": "PIPELINE_UPDATE", "agent": "AEGIS",
                 "result": aegis_result,
                 "message": f"Step {step['step_num']} {'CLEARED' if aegis_result['passed'] else 'VETOED'}: {cmd} — {aegis_result.get('veto_reason') or 'all checks passed'}"})
-            if aegis_result["passed"]:
-                self._voice("AEGIS", f"Step {step['step_num']} cleared. {cmd} on {asset_id} passes all safety interlocks. TRITON is clear to execute.")
-            else:
-                self._voice("AEGIS", f"Vetoed. {cmd} on {asset_id} failed the interlock check — {aegis_result.get('veto_reason', 'safety condition not met')}. Execution stops here.")
+            if not aegis_result["passed"]:
+                self._voice("AEGIS", f"Vetoed. {cmd} on {asset_id} — {aegis_result.get('veto_reason', 'safety condition not met')}. Execution stops here.")
 
             if not aegis_result["passed"]:
                 self._broadcast({"type": "CHAT_MESSAGE", "role": "tare",
@@ -744,10 +1063,8 @@ class TAREEngine:
                 "result": exec_result,
                 "message": f"Step {step['step_num']} {exec_result.get('status','?')}: {cmd} → {exec_result.get('decision','?')}"})
             status = exec_result.get("status", "?")
-            if status == "EXECUTED":
-                self._voice("TRITON", f"Done. {cmd} on {asset_id} executed. Step {step['step_num']} complete — TEMPEST, your turn.")
-            else:
-                self._voice("TRITON", f"Step {step['step_num']} did not execute — gateway returned {exec_result.get('decision','?')}. Stopping.")
+            if status != "EXECUTED":
+                self._voice("TRITON", f"Step {step['step_num']} failed — gateway returned {exec_result.get('decision','?')}.")
 
             if exec_result.get("status") == "EXECUTED":
                 completed_steps.append(exec_result)
@@ -776,6 +1093,8 @@ class TAREEngine:
             self._broadcast({"type": "CHAT_MESSAGE", "role": "tare",
                 "message": f"LEVIER finished the rollback — {recovery['steps_executed']} step(s) reverted. The grid is back to its pre-execution state. Everything is stable."})
         elif not aborted:
+            self._voice("AEGIS", f"All {len(completed_steps)} step(s) cleared. No safety violations detected. Execution complete.")
+            self._voice("TRITON", f"{len(completed_steps)} step(s) executed clean. AEGIS cleared every command. Grid is stable.")
             self._broadcast({"type": "CHAT_MESSAGE", "role": "tare",
                 "message": f"All done. {len(completed_steps)} step(s) executed cleanly under Zone 1 safety guardrails. AEGIS cleared every command, TEMPEST kept the pace safe throughout. Full audit trail is logged."})
 
@@ -846,7 +1165,7 @@ class TAREEngine:
                         ],
                     },
                 }
-                print(f"[ServiceNow ✓] Incident created: {snow.incident_number} | Priority: 1 — Critical | Assigned to: SOC Analyst")
+                print(f"[ServiceNow OK] Incident created: {snow.incident_number} | Priority: 1 - Critical | Assigned to: SOC Analyst")
                 self._broadcast({"type": "SERVICENOW_INCIDENT", "incident": self.active_incident})
 
         self._broadcast({
@@ -914,8 +1233,9 @@ class TAREEngine:
             "created_at":        datetime.now().isoformat(),
             "evidence":          evidence,
         }
-        print(f"[ServiceNow ✓] Incident created: {snow.incident_number} | Priority: {self.active_incident['priority']} | Agent: {agent_name} | Signals: {sig_names}")
+        print(f"[ServiceNow OK] Incident created: {snow.incident_number} | Priority: {self.active_incident['priority']} | Agent: {agent_name} | Signals: {sig_names}")
 
+        self._voice("BARRIER", "FREEZE enforced. All high-impact grid operations blocked. No commands execute until supervisor decision.")
         self._broadcast({
             "type":    "TARE_RESPONSE",
             "action":  "FREEZE",

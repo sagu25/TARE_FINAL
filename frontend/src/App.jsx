@@ -55,6 +55,7 @@ export default function App() {
   const [feedItems,      setFeedItems]      = useState([])
   const [wsConnected,    setWsConnected]    = useState(false)
   const [showApprove,    setShowApprove]    = useState(false)
+  const [approveType,    setApproveType]    = useState('default') // 'ooh' | 'default'
   const [showFlash,      setShowFlash]      = useState(false)
   const [darkMode,       setDarkMode]       = useState(() => localStorage.getItem('tare-theme') !== 'light')
   const [zoneModal,      setZoneModal]      = useState(null)
@@ -124,8 +125,8 @@ export default function App() {
         addFeed('warning', 'ServiceNow', `Incident created: ${msg.incident?.incident_id}`); break
       case 'CHAT_MESSAGE':
         setChatMsgs(prev => [...prev, { role: msg.role, text: msg.message, ts: new Date().toISOString() }])
-        if (msg.show_approve) setShowApprove(true)
-        if (msg.show_approve === false) setShowApprove(false); break
+        if (msg.show_approve) { setShowApprove(true); setApproveType(msg.approve_type || 'default') }
+        if (msg.show_approve === false) { setShowApprove(false); setApproveType('default') }; break
       case 'TIMEBOX_APPROVED':
         setShowApprove(false)
         addFeed('info', 'TARE', `Time-box approved — ${msg.duration_minutes}min window active`); break
@@ -251,14 +252,11 @@ export default function App() {
             <RightPanel
               feedItems={feedItems} stats={snap.stats}
               wsConnected={wsConnected} scenarioActive={scenarioActive}
-              onReset={()             => post('/reset')}
-              onAgentNormal={()           => runScenario('/agent/normal')}
-              onAgentRogue={()            => runScenario('/agent/rogue')}
-              onAgentImpersonator={()     => runScenario('/agent/impersonator')}
-              onAgentCoordinated={()      => runScenario('/agent/coordinated')}
-              onAgentEscalation={()       => runScenario('/agent/escalation')}
-              onAgentSlowLow={()          => runScenario('/agent/slowlow')}
-              onAgentReadonlyWrite={()    => runScenario('/agent/readonly-write')}
+              onReset={()               => post('/reset')}
+              onOutOfHours={()          => runScenario('/agent/out-of-hours')}
+              onRepeatedFailures={()    => runScenario('/agent/repeated-failures')}
+              onRunawayLoop={()         => runScenario('/agent/runaway-loop')}
+              onReadonlyWrite={()       => runScenario('/agent/readonly-write')}
             />
           </div>
 
@@ -267,6 +265,8 @@ export default function App() {
             <BottomTabs
               gatewayLog={snap.gateway_log} chatMsgs={chatMsgs} feedItems={feedItems}
               showApprove={showApprove}
+              approveType={approveType}
+              timeboxRemaining={snap.timebox_remaining}
               onApprove={() => post('/approve/timebox')}
               onDeny={()    => post('/deny/timebox')}
               onZoneClick={setZoneModal} mode={snap.mode}

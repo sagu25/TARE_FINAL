@@ -3,7 +3,7 @@ import CommandGateway from './CommandGateway'
 import ChatAssistant  from './ChatAssistant'
 import ActivityFeed   from './ActivityFeed'
 
-export default function BottomTabs({ gatewayLog, chatMsgs, feedItems, showApprove, onApprove, onDeny, onZoneClick, mode }) {
+export default function BottomTabs({ gatewayLog, chatMsgs, feedItems, showApprove, approveType, timeboxRemaining, onApprove, onDeny, onZoneClick, mode }) {
   const [tab, setTab]       = useState('gateway')
   const [unread, setUnread] = useState(0)
   const prevFeedLen = useRef(feedItems.length)
@@ -67,7 +67,7 @@ export default function BottomTabs({ gatewayLog, chatMsgs, feedItems, showApprov
         <CommandGateway log={gatewayLog} onZoneClick={onZoneClick} />
       </div>
       <div className={`ptab-body bottom-ptab-body ${tab === 'chat' ? '' : 'ptab-hidden'}`}>
-        <ChatAssistant messages={chatMsgs} showApprove={showApprove} onApprove={onApprove} onDeny={onDeny} />
+        <ChatAssistant messages={chatMsgs} showApprove={showApprove} approveType={approveType} timeboxRemaining={timeboxRemaining} onApprove={onApprove} onDeny={onDeny} />
       </div>
       <div className={`ptab-body bottom-ptab-body ${tab === 'feed' ? '' : 'ptab-hidden'}`}>
         <ActivityFeed feedItems={feedItems} />

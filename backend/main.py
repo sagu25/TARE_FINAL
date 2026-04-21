@@ -16,9 +16,8 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 
 from tare_engine import TAREEngine
-from grid_agent import (run_normal_agent, run_rogue_agent, run_impersonator_agent,
-                        run_coordinated_agent, run_escalation_agent, run_slow_low_agent,
-                        run_readonly_write_agent)
+from grid_agent import (run_out_of_hours_agent, run_repeated_failures_agent,
+                        run_runaway_loop_agent, run_readonly_write_agent)
 from mcp_server import router as mcp_router
 
 import os
@@ -107,45 +106,27 @@ async def demo_anomaly():
     return {"status": "started"}
 
 # ─── Real AI Agent endpoints ───────────────────────────────────────────────────
-@app.post("/agent/normal")
-async def agent_normal():
-    """Start the real LangChain agent with the legitimate fault-repair task."""
-    run_normal_agent(engine, manager.sync_broadcast)
-    return {"status": "agent_started", "task": "normal"}
+@app.post("/agent/out-of-hours")
+async def agent_out_of_hours():
+    """Scenario 1 — High-impact action at 02:30, no maintenance window."""
+    run_out_of_hours_agent(engine, manager.sync_broadcast)
+    return {"status": "agent_started", "task": "out_of_hours"}
 
-@app.post("/agent/rogue")
-async def agent_rogue():
-    """Start the real LangChain agent with the rogue/malicious task."""
-    run_rogue_agent(engine, manager.sync_broadcast)
-    return {"status": "agent_started", "task": "rogue"}
+@app.post("/agent/repeated-failures")
+async def agent_repeated_failures():
+    """Scenario 2 — Same action fails 3x, TEMPEST detects unsafe retry pattern."""
+    run_repeated_failures_agent(engine, manager.sync_broadcast)
+    return {"status": "agent_started", "task": "repeated_failures"}
 
-@app.post("/agent/impersonator")
-async def agent_impersonator():
-    """Start the impersonator agent — forged token, blocked at auth layer."""
-    run_impersonator_agent(engine, manager.sync_broadcast)
-    return {"status": "agent_started", "task": "impersonator"}
-
-@app.post("/agent/coordinated")
-async def agent_coordinated():
-    """Two rogue agents hit Z1 and Z2 simultaneously."""
-    run_coordinated_agent(engine, manager.sync_broadcast)
-    return {"status": "agent_started", "task": "coordinated"}
-
-@app.post("/agent/escalation")
-async def agent_escalation():
-    """Starts normal in Z3, escalates to all zones mid-session."""
-    run_escalation_agent(engine, manager.sync_broadcast)
-    return {"status": "agent_started", "task": "escalation"}
-
-@app.post("/agent/slowlow")
-async def agent_slowlow():
-    """Slow & low recon — rules silent, ML model flags it."""
-    run_slow_low_agent(engine, manager.sync_broadcast)
-    return {"status": "agent_started", "task": "slowlow"}
+@app.post("/agent/runaway-loop")
+async def agent_runaway_loop():
+    """Scenario 3 — Automation bug fires same command at machine speed, TEMPEST detects, SAFETY HOLD applied."""
+    run_runaway_loop_agent(engine, manager.sync_broadcast)
+    return {"status": "agent_started", "task": "runaway_loop"}
 
 @app.post("/agent/readonly-write")
 async def agent_readonly_write():
-    """Read-only identity attempts a write operation — KORAL logs, TARE checks policy, BARRIER enforces."""
+    """Scenario 4 — Read-only identity attempts write, BARRIER enforces."""
     run_readonly_write_agent(engine, manager.sync_broadcast)
     return {"status": "agent_started", "task": "readonly_write"}
 

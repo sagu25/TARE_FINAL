@@ -23,7 +23,14 @@ function isNarration(msg) {
   return msg.role === 'narration' || msg.role === 'system'
 }
 
-export default function ChatAssistant({ messages, showApprove, onApprove, onDeny }) {
+function fmtCountdown(secs) {
+  if (secs == null || secs < 0) return null
+  const m = Math.floor(secs / 60)
+  const s = secs % 60
+  return `${m}:${String(s).padStart(2, '0')}`
+}
+
+export default function ChatAssistant({ messages, showApprove, approveType, timeboxRemaining, onApprove, onDeny }) {
   const bottomRef  = useRef(null)
   const inputRef   = useRef(null)
   const [input,    setInput]    = useState('')
@@ -141,11 +148,19 @@ export default function ChatAssistant({ messages, showApprove, onApprove, onDeny
         </button>
       </div>
 
+      {timeboxRemaining != null && (
+        <div className="timebox-countdown">
+          ⏱ Window active — {fmtCountdown(timeboxRemaining)} remaining
+        </div>
+      )}
+
       {showApprove && (
         <div className="approve-bar">
           <div className="approve-label">⚠ Supervisor decision required</div>
           <div className="approve-actions">
-            <button className="approve-btn" onClick={onApprove}>✓ Approve 3-min Time-Box</button>
+            <button className="approve-btn" onClick={onApprove}>
+              {approveType === 'ooh' ? '✓ Approve 15-min Emergency Window' : '✓ Approve 3-min Time-Box'}
+            </button>
             <button className="deny-btn" onClick={onDeny}>✕ Deny / Escalate</button>
           </div>
         </div>

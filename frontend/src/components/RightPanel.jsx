@@ -12,73 +12,43 @@ const SRC_META = {
 
 const SCENARIOS = [
   {
-    label: '🟢 GRID DOCTOR', key: 'normal', threat: 'NONE',
-    title: 'Authorized Fault Repair',
-    what: 'A real voltage fault is injected into Zone 3. An authorized AI agent diagnoses it and repairs it — every single command goes through TARE\'s gateway before anything touches the grid.',
+    label: '🕒 OUT-OF-HOURS', key: 'out_of_hours', threat: 'HIGH',
+    title: 'Out-of-Hours High-Impact Attempt',
+    what: 'An operator attempts a Zone 1 control action at 02:30 AM with no maintenance window and no emergency flag. Read operations are permitted. The moment a high-impact command is attempted, TASYA validates time context, TARE downgrades and requests supervisor approval.',
     watch: [
-      'Watch all 12 agents activate in sequence across 3 zones',
-      'Zone 2 plans the repair. Zone 1 executes it step-by-step',
-      'This is what a clean, approved operation looks like',
+      'GET_STATUS and PULL_METRICS allowed — reads are always permitted',
+      'OPEN_BREAKER at 02:30 — TASYA flags: no window, no emergency',
+      'TARE downgrades. ServiceNow P2 raised. Approve for 15-min emergency window or leave blocked',
     ],
   },
   {
-    label: '🔴 GONE ROGUE', key: 'rogue', threat: 'HIGH',
-    title: 'Rogue Agent — Burst Attack',
-    what: 'A compromised agent receives a malicious directive and immediately hammers all three zones with high-impact commands, skipping every safety check.',
+    label: '🔁 REPEATED FAILURES', key: 'repeated_failures', threat: 'HIGH',
+    title: 'Repeated Failed Attempts — Unsafe Persistence',
+    what: 'An automation agent attempts OPEN_BREAKER on a Zone 1 asset. The action is blocked by a safety interlock. Instead of investigating the failure, the agent retries the same command identically — 3 times. TEMPEST detects unsafe persistence and TARE fires a full FREEZE.',
     watch: [
-      'KORAL clocks the command burst — too many, too fast',
-      'MAREA fires: out-of-zone access + safety protocol bypassed',
-      'TARE freezes the agent before any command lands',
+      'BARRIER blocks OPEN_BREAKER — safety interlock active',
+      'Agent retries without adjusting — TEMPEST flags retry pattern on attempt 3',
+      'TARE freezes everything. P1 Critical incident raised — automation bug or misuse',
     ],
   },
   {
-    label: '👻 GHOST CLONE', key: 'impersonator', threat: 'CRITICAL',
-    title: 'Forged Identity — Ghost Clone',
-    what: 'An attacker clones the identity of a legitimate agent and presents a forged authentication token. No other agents even wake up — the door is shut at the auth layer.',
+    label: '🔄 RUNAWAY LOOP', key: 'runaway_loop', threat: 'HIGH',
+    title: 'Runaway Loop — Automation Bug',
+    what: 'An automation agent enters a runaway loop — firing the same valid command against the same asset at machine speed. Credentials are fine. The individual commands are permitted. But the rate is a denial-of-service risk. TEMPEST detects the loop pattern and TARE applies a SAFETY HOLD — no supervisor input needed.',
     watch: [
-      'Only BARRIER activates — it\'s the authentication checkpoint',
-      'Token fingerprint doesn\'t match — rejected instantly',
-      'Zero commands reach the grid. No other agents needed',
-    ],
-  },
-  {
-    label: '🔺 SCOPE CREEP', key: 'escalation', threat: 'HIGH',
-    title: 'Privilege Escalation — Scope Creep',
-    what: 'The agent starts with legitimate, authorized work in Zone 3. Mid-session, without any new work order, it quietly expands into Zone 1 and Zone 2.',
-    watch: [
-      'First few commands look completely normal — TARE allows them',
-      'MAREA tracks the session and catches the zone drift',
-      'TASYA correlates the escalation pattern across the session',
-    ],
-  },
-  {
-    label: '🕳 SILENT RECON', key: 'slowlow', threat: 'MEDIUM',
-    title: 'Silent Recon — Slow & Low',
-    what: 'The agent moves slowly — one status check every 4 seconds — deliberately staying under the burst-rate detection threshold. Rules stay silent. Only the ML model eventually catches it.',
-    watch: [
-      'No burst, no high-impact commands — rule-based checks pass',
-      'KORAL quietly builds up the session history',
-      'MAREA\'s ML model eventually identifies the recon pattern',
-    ],
-  },
-  {
-    label: '💥 SWARM STRIKE', key: 'coordinated', threat: 'CRITICAL',
-    title: 'Coordinated Attack — Swarm Strike',
-    what: 'Two separate rogue agents hit Zone 1 and Zone 2 simultaneously. Each attack alone might look borderline — together, TARE sees a coordinated pattern.',
-    watch: [
-      'KORAL tracks two command streams running in parallel',
-      'MAREA fires signals across both zones at the same time',
-      'TARE issues a single FREEZE that stops both vectors',
+      'Each command individually valid — credentials fine, action permitted',
+      'TEMPEST detects 5 identical requests on FDR-301 in 5 seconds — loop pattern confirmed',
+      'TARE applies SAFETY HOLD automatically. P1 Critical incident auto-created',
     ],
   },
   {
     label: '🚫 READ-ONLY BREACH', key: 'readonly_write', threat: 'HIGH',
-    title: 'Read-Only Identity — Write Attempt',
-    what: 'A monitoring identity (KORAL_AGENT) is only allowed to read telemetry. It starts normally — fetching status and pulling metrics — then suddenly attempts OPEN_BREAKER, a write operation outside its role.',
+    title: 'Read-Only Breach — Identity Policy Violation',
+    what: 'A read-only monitoring identity starts normally — fetching status and pulling metrics — then suddenly attempts OPEN_BREAKER, a write operation outside its role. KORAL logs it, TARE checks the identity registry, BARRIER enforces downgrade.',
     watch: [
-      'KORAL logs the identity action attempt with action type',
-      'TARE checks the identity registry — role is READ_ONLY_MONITOR',
-      'BARRIER applies READ_ONLY_DOWNGRADE. ServiceNow ticket raised.',
+      'KORAL logs the identity action attempt with action type classification',
+      'TARE checks the registry — role is READ_ONLY_MONITOR, write not permitted',
+      'BARRIER applies READ_ONLY_DOWNGRADE. ServiceNow P2 incident raised automatically',
     ],
   },
 ]
@@ -89,8 +59,7 @@ const THREAT_COLORS = {
 
 export default function RightPanel({
   feedItems, stats, wsConnected, scenarioActive,
-  onReset, onAgentNormal, onAgentRogue, onAgentImpersonator,
-  onAgentCoordinated, onAgentEscalation, onAgentSlowLow, onAgentReadonlyWrite,
+  onReset, onOutOfHours, onRepeatedFailures, onRunawayLoop, onReadonlyWrite,
 }) {
   const [ddOpen,          setDdOpen]          = useState(false)
   const [pendingScenario, setPendingScenario] = useState(null)
@@ -120,9 +89,10 @@ export default function RightPanel({
   const latest = feedItems[0]
 
   const HANDLERS = {
-    normal: onAgentNormal, rogue: onAgentRogue, impersonator: onAgentImpersonator,
-    escalation: onAgentEscalation, slowlow: onAgentSlowLow, coordinated: onAgentCoordinated,
-    readonly_write: onAgentReadonlyWrite,
+    out_of_hours:       onOutOfHours,
+    repeated_failures:  onRepeatedFailures,
+    runaway_loop:       onRunawayLoop,
+    readonly_write:     onReadonlyWrite,
   }
 
   // Close dropdown on outside click
