@@ -430,6 +430,7 @@ export default function LandingPage({ onEnter }) {
   const currentLine = NARRATION[nar.index]?.text || ''
 
   return (
+    <>
     <div className={`landing-root ${exiting ? 'landing-exit' : ''}`}>
       <div className="landing-scanline" />
       <div className="landing-vignette" />
@@ -586,5 +587,6 @@ export default function LandingPage({ onEnter }) {
     </div>
 
     {briefing && <AgentBriefing onClose={() => setBriefing(false)} />}
+    </>
   )
 }
