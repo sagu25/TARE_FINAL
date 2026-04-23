@@ -153,6 +153,20 @@ export function speakAgent(agent, message) {
   _processQueue()
 }
 
+// Speaks a single line and resolves when audio finishes.
+// Used by AgentBriefing for sequential, awaitable playback.
+export async function speakAgentAsync(agent, message) {
+  if (_muted) return
+  const name = PRONUNCIATIONS[agent] || agent.charAt(0) + agent.slice(1).toLowerCase()
+  const text = `${name}: ${message}`
+
+  if (_azureReady) {
+    const ok = await _speakAzure(agent, text)
+    if (ok) return
+  }
+  await _speakBrowser(agent, text)
+}
+
 export function setVoiceMuted(muted) {
   _muted = muted
   if (muted) {

@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import './LandingPage.css'
+import { speakAgentAsync, clearVoiceQueue } from '../agentVoices'
 
 // ── Narration script — shared with NarrationBar ───────────────────────────────
 // pause = ms to wait AFTER this utterance before the next
@@ -171,6 +172,136 @@ const AGENT_TICKER = [
   { icon:'🛡', name:'BARRIER',  zone:'Z4', color:'#00b8e6', role:'Policy Enforcement',      desc:'Sole ALLOW/DENY authority at the command gateway.' },
 ]
 
+// ── Agent Briefing data ───────────────────────────────────────────────────────
+const BRIEFING_LINES = [
+  { agent:'KORAL',    zone:'Zone 3', icon:'📡', color:'#00d4ff', line:'I record every command. Nothing enters the grid without passing through me first.' },
+  { agent:'MAREA',    zone:'Zone 3', icon:'🌊', color:'#f59e0b', line:'I watch for drift — burst rates, wrong zones, skipped safety steps. I find the patterns.' },
+  { agent:'TASYA',    zone:'Zone 3', icon:'🔗', color:'#a855f7', line:'I check context. The right command at the wrong time is still the wrong command.' },
+  { agent:'NEREUS',   zone:'Zone 3', icon:'🧠', color:'#00e87c', line:'I synthesize what the others find and brief the supervisor. I recommend. I never decide.' },
+  { agent:'ECHO',     zone:'Zone 2', icon:'🔬', color:'#38bdf8', line:'I diagnose the fault. Before anyone plans a repair, I confirm what is actually broken.' },
+  { agent:'SIMAR',    zone:'Zone 2', icon:'🔭', color:'#fb923c', line:'I simulate the repair before it touches the live grid. If it fails here, it never runs.' },
+  { agent:'NAVIS',    zone:'Zone 2', icon:'🗺', color:'#4ade80', line:'I build the execution plan — step by step, NERC CIP compliant, with a rollback path.' },
+  { agent:'RISKADOR', zone:'Zone 2', icon:'⚖',  color:'#facc15', line:'I score the plan. Blast radius, reversibility, confidence. Too risky means we stop.' },
+  { agent:'TRITON',   zone:'Zone 1', icon:'⚡', color:'#f43f5e', line:'I execute — but only what TARE permits and AEGIS clears. Every step is accountable.' },
+  { agent:'AEGIS',    zone:'Zone 1', icon:'🛡', color:'#e879f9', line:'I hold veto authority on every execution step. One unsafe condition and nothing proceeds.' },
+  { agent:'TEMPEST',  zone:'Zone 1', icon:'🌪', color:'#67e8f9', line:'I monitor pace and retry patterns. A loop or unsafe persistence — I catch it and flag TARE.' },
+  { agent:'LEVIER',   zone:'Zone 1', icon:'↩',  color:'#86efac', line:'I roll back. If execution is aborted, I undo what was done and return the grid to safety.' },
+  { agent:'BARRIER',  zone:'Zone 4', icon:'🔒', color:'#00b8e6', line:'I am the gateway. TARE decides the mode. I enforce it. I am the only one who can allow or deny.' },
+]
+
+const ZONE_LABELS = {
+  'Zone 3': { label:'Zone 3 — Reef · Observe & Recommend', color:'#00d4ff' },
+  'Zone 2': { label:'Zone 2 — Shelf · Diagnose & Prepare',  color:'#f59e0b' },
+  'Zone 1': { label:'Zone 1 — Trench · Execute with Safety', color:'#f43f5e' },
+  'Zone 4': { label:'Zone 4 · Policy Enforcement',           color:'#00b8e6' },
+}
+
+// ── Agent Briefing Modal ──────────────────────────────────────────────────────
+function AgentBriefing({ onClose }) {
+  const [activeIdx,  setActiveIdx]  = useState(-1)
+  const [running,    setRunning]    = useState(false)
+  const [done,       setDone]       = useState(false)
+  const cancelRef = useRef(false)
+
+  async function startBriefing() {
+    cancelRef.current = false
+    setRunning(true)
+    setDone(false)
+    for (let i = 0; i < BRIEFING_LINES.length; i++) {
+      if (cancelRef.current) break
+      setActiveIdx(i)
+      const item = BRIEFING_LINES[i]
+      await speakAgentAsync(item.agent, item.line)
+      if (!cancelRef.current) await new Promise(r => setTimeout(r, 250))
+    }
+    if (!cancelRef.current) setDone(true)
+    setRunning(false)
+    setActiveIdx(-1)
+  }
+
+  function handleSkip() {
+    cancelRef.current = true
+    clearVoiceQueue()
+    setRunning(false)
+    setActiveIdx(-1)
+    onClose()
+  }
+
+  useEffect(() => {
+    startBriefing()
+    return () => { cancelRef.current = true; clearVoiceQueue() }
+  }, [])
+
+  const zones = [...new Set(BRIEFING_LINES.map(b => b.zone))]
+
+  return (
+    <div className="brief-overlay">
+      <div className="brief-modal">
+        <div className="brief-header">
+          <div className="brief-title">
+            <span className="brief-title-dot" />
+            AGENT BRIEFING
+            <span className="brief-title-dot" />
+          </div>
+          <div className="brief-subtitle">13 SPECIALISED AI ENTITIES · TARE SECURITY NETWORK</div>
+        </div>
+
+        <div className="brief-zones">
+          {zones.map(zone => {
+            const zinfo = ZONE_LABELS[zone]
+            const agents = BRIEFING_LINES.filter(b => b.zone === zone)
+            return (
+              <div key={zone} className="brief-zone">
+                <div className="brief-zone-label" style={{ color: zinfo.color, borderColor: zinfo.color + '40' }}>
+                  {zinfo.label}
+                </div>
+                <div className="brief-zone-agents">
+                  {agents.map((item, _) => {
+                    const idx = BRIEFING_LINES.indexOf(item)
+                    const isActive = idx === activeIdx
+                    return (
+                      <div
+                        key={item.agent}
+                        className={`brief-agent ${isActive ? 'brief-agent-active' : ''} ${idx < activeIdx || done ? 'brief-agent-done' : ''}`}
+                        style={{ '--agent-color': item.color }}
+                      >
+                        <div className="brief-agent-icon">{item.icon}</div>
+                        <div className="brief-agent-body">
+                          <div className="brief-agent-name" style={{ color: item.color }}>{item.agent}</div>
+                          {isActive && (
+                            <div className="brief-agent-line">{item.line}</div>
+                          )}
+                          {!isActive && (idx < activeIdx || done) && (
+                            <div className="brief-agent-line brief-agent-line-done">{item.line}</div>
+                          )}
+                        </div>
+                        {isActive && <div className="brief-agent-speaking"><span /><span /><span /></div>}
+                        {(idx < activeIdx || done) && !isActive && <div className="brief-agent-check">✓</div>}
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+
+        <div className="brief-footer">
+          {running && (
+            <div className="brief-progress">
+              <div className="brief-progress-fill" style={{ width: `${Math.round((activeIdx + 1) / BRIEFING_LINES.length * 100)}%` }} />
+            </div>
+          )}
+          {done && <div className="brief-done-msg">All agents briefed. Ready to deploy.</div>}
+          <button className="brief-skip" onClick={handleSkip}>
+            {done ? 'Close' : 'Skip'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Agent Ticker Component ────────────────────────────────────────────────────
 function AgentTicker() {
   const items = [...AGENT_TICKER, ...AGENT_TICKER]
@@ -283,8 +414,9 @@ function useNarrationState() {
 
 // ── Component ─────────────────────────────────────────────────────────────────
 export default function LandingPage({ onEnter }) {
-  const [ready,   setReady]   = useState(false)
-  const [exiting, setExiting] = useState(false)
+  const [ready,    setReady]    = useState(false)
+  const [exiting,  setExiting]  = useState(false)
+  const [briefing, setBriefing] = useState(false)
   const nar = useNarrationState()
 
   useEffect(() => { setTimeout(() => setReady(true), 80) }, [])
@@ -415,6 +547,12 @@ export default function LandingPage({ onEnter }) {
             {nar.playing ? '■ Stop' : '▶ Play Narration'}
           </button>
 
+          <button className="lp-nar-btn lp-brief-btn"
+            onClick={() => setBriefing(true)}
+            title="Hear each agent introduce themselves">
+            🎙 Agent Briefing
+          </button>
+
           {nar.playing && (
             <button className={`lp-nar-btn lp-nar-pause-btn ${nar.paused ? 'lp-nar-paused' : ''}`}
               onClick={narTogglePause} title={nar.paused ? 'Resume' : 'Pause'}>
@@ -446,5 +584,7 @@ export default function LandingPage({ onEnter }) {
       </div>
 
     </div>
+
+    {briefing && <AgentBriefing onClose={() => setBriefing(false)} />}
   )
 }
