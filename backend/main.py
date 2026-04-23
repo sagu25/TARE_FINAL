@@ -15,10 +15,12 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 
+from fastapi.responses import Response
 from tare_engine import TAREEngine
 from grid_agent import (run_out_of_hours_agent, run_repeated_failures_agent,
                         run_runaway_loop_agent, run_readonly_write_agent)
 from mcp_server import router as mcp_router
+from tts_service import synthesize as _tts_synthesize, is_configured as _tts_configured
 
 import os
 try:
@@ -144,6 +146,23 @@ async def deny_timebox():
 async def reset():
     engine.reset()
     return {"status": "reset"}
+
+# ─── Azure TTS endpoints ───────────────────────────────────────────────────────
+@app.get("/api/tts/status")
+async def tts_status():
+    return {"configured": _tts_configured()}
+
+@app.post("/api/tts")
+async def tts_endpoint(payload: dict):
+    agent = payload.get("agent", "")
+    text  = payload.get("text", "")
+    if not text:
+        return JSONResponse({"error": "no text"}, status_code=400)
+    loop  = asyncio.get_event_loop()
+    audio = await loop.run_in_executor(None, _tts_synthesize, agent, text)
+    if audio is None:
+        return JSONResponse({"error": "not_configured"}, status_code=503)
+    return Response(content=audio, media_type="audio/mpeg")
 
 # ─── Historical context (simulated audit trail for demo) ──────────────────────
 HISTORICAL_SUMMARY = """
