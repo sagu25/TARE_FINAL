@@ -864,3 +864,186 @@
   color: #00d4ff;
   background: #00d4ff10;
 }
+
+/* ── Spotlight area ──────────────────────────────────────────────────────── */
+.brief-spotlight {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+  padding: 12px 24px 8px;
+  position: relative;
+}
+
+/* System start screen */
+.brief-sys-start {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  animation: brief-fade-in 0.4s ease;
+}
+.brief-sys-start > div:first-child {
+  display: flex; gap: 8px; justify-content: center;
+}
+.brief-sys-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: #00d4ff;
+  animation: brief-sys-blink 1.2s ease-in-out infinite;
+}
+.brief-sys-dot:nth-child(2) { animation-delay: 0.2s; }
+.brief-sys-dot:nth-child(3) { animation-delay: 0.4s; }
+@keyframes brief-sys-blink {
+  0%, 100% { opacity: 0.2; transform: scale(0.7); }
+  50%       { opacity: 1;   transform: scale(1);   }
+}
+.brief-sys-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  color: #00d4ff;
+}
+.brief-sys-sub {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  color: #2a6a84;
+  letter-spacing: 0.15em;
+}
+
+/* Agent spotlight card */
+.brief-card {
+  position: relative;
+  width: 160px;
+  height: 160px;
+  border-radius: 14px;
+  border: 1px solid var(--agent-color);
+  background: color-mix(in srgb, var(--agent-color) 8%, #04080f);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  overflow: hidden;
+  box-shadow: 0 0 32px color-mix(in srgb, var(--agent-color) 25%, transparent),
+              0 0  8px color-mix(in srgb, var(--agent-color) 15%, transparent);
+}
+.brief-card-enter {
+  animation: brief-card-in 0.35s cubic-bezier(0.16,1,0.3,1);
+}
+.brief-card-exit {
+  animation: brief-card-out 0.4s ease forwards;
+}
+@keyframes brief-card-in {
+  from { opacity: 0; transform: scale(0.82); }
+  to   { opacity: 1; transform: scale(1);    }
+}
+@keyframes brief-card-out {
+  from { opacity: 1; transform: scale(1);    }
+  to   { opacity: 0; transform: scale(0.88); }
+}
+
+.brief-card-glow {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 50% 40%,
+    color-mix(in srgb, var(--agent-color) 12%, transparent) 0%,
+    transparent 70%);
+  pointer-events: none;
+}
+.brief-card-icon {
+  font-size: 42px;
+  line-height: 1;
+  position: relative;
+  z-index: 1;
+}
+.brief-card-name {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  position: relative;
+  z-index: 1;
+}
+.brief-card-zone {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px;
+  color: #3a7a94;
+  background: #060d18;
+  border: 1px solid #0d2a3a;
+  border-radius: 4px;
+  padding: 2px 8px;
+  letter-spacing: 0.12em;
+  position: relative;
+  z-index: 1;
+}
+.brief-card-bars {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  position: relative;
+  z-index: 1;
+}
+.brief-card-bars span {
+  width: 3px;
+  border-radius: 2px;
+  background: var(--agent-color);
+  animation: brief-bar 0.7s ease-in-out infinite;
+}
+.brief-card-bars span:nth-child(1) { height: 10px; animation-delay: 0s;    }
+.brief-card-bars span:nth-child(2) { height: 18px; animation-delay: 0.1s;  }
+.brief-card-bars span:nth-child(3) { height: 24px; animation-delay: 0.2s;  }
+.brief-card-bars span:nth-child(4) { height: 18px; animation-delay: 0.3s;  }
+.brief-card-bars span:nth-child(5) { height: 10px; animation-delay: 0.4s;  }
+
+/* Passing to... */
+.brief-passing {
+  margin-top: 14px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  color: #3a7a94;
+  letter-spacing: 0.08em;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  animation: brief-fade-in 0.2s ease;
+}
+.brief-passing-dots span {
+  animation: brief-dot-bounce 1s ease-in-out infinite;
+  display: inline-block;
+  color: #2a5a74;
+}
+.brief-passing-dots span:nth-child(2) { animation-delay: 0.15s; }
+.brief-passing-dots span:nth-child(3) { animation-delay: 0.3s;  }
+@keyframes brief-dot-bounce {
+  0%, 100% { opacity: 0.2; transform: translateY(0); }
+  50%       { opacity: 1;   transform: translateY(-3px); }
+}
+
+/* Done card */
+.brief-done-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  animation: brief-fade-in 0.4s ease;
+}
+.brief-done-check {
+  font-size: 40px;
+  color: #00e87c;
+}
+.brief-done-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  font-weight: 700;
+  color: #00e87c;
+  letter-spacing: 0.12em;
+}
+.brief-done-sub {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  color: #2a6a44;
+  letter-spacing: 0.15em;
+}

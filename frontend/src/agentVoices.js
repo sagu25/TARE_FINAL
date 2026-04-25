@@ -167,6 +167,37 @@ export async function speakAgentAsync(agent, message) {
   await _speakBrowser(agent, text)
 }
 
+// Fetches audio from Azure and returns a blob URL — does NOT play it.
+// Use this to prefetch next agent's audio while current is speaking.
+export async function fetchAudio(agent, message) {
+  if (!_azureReady) return null
+  const name = PRONUNCIATIONS[agent] || agent.charAt(0) + agent.slice(1).toLowerCase()
+  const text = `${name}: ${message}`
+  try {
+    const res = await fetch('/api/tts', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ agent, text }),
+    })
+    if (!res.ok) return null
+    const blob = await res.blob()
+    return URL.createObjectURL(blob)
+  } catch {
+    return null
+  }
+}
+
+// Plays a pre-fetched blob URL and resolves when done.
+export function playBlobUrl(url) {
+  return new Promise(resolve => {
+    const audio  = new Audio(url)
+    audio.volume = _muted ? 0 : 1.0
+    audio.onended = () => { URL.revokeObjectURL(url); resolve() }
+    audio.onerror = () => { URL.revokeObjectURL(url); resolve() }
+    audio.play().catch(() => resolve())
+  })
+}
+
 export function setVoiceMuted(muted) {
   _muted = muted
   if (muted) {

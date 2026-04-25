@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import './LandingPage.css'
-import { speakAgentAsync, clearVoiceQueue } from '../agentVoices'
+import { speakAgentAsync, fetchAudio, playBlobUrl, clearVoiceQueue } from '../agentVoices'
 
 // ── Narration script — shared with NarrationBar ───────────────────────────────
 // pause = ms to wait AFTER this utterance before the next
@@ -197,33 +197,65 @@ const ZONE_LABELS = {
 }
 
 // ── Agent Briefing Modal ──────────────────────────────────────────────────────
+// phase: 'starting' | 'active' | 'passing' | 'done'
 function AgentBriefing({ onClose }) {
+  const [phase,      setPhase]      = useState('starting')
   const [activeIdx,  setActiveIdx]  = useState(-1)
-  const [running,    setRunning]    = useState(false)
-  const [done,       setDone]       = useState(false)
+  const [nextName,   setNextName]   = useState('')
+  const [nextColor,  setNextColor]  = useState('#00d4ff')
   const cancelRef = useRef(false)
+  const delay = ms => new Promise(r => setTimeout(r, ms))
 
   async function startBriefing() {
     cancelRef.current = false
-    setRunning(true)
-    setDone(false)
+
+    // Show "System Briefing Initiated" for 1.4s while prefetching first agent
+    setPhase('starting')
+    const firstItem  = BRIEFING_LINES[0]
+    const firstFetch = fetchAudio(firstItem.agent, firstItem.line)
+    await delay(1400)
+
+    let cachedUrl = await firstFetch
+
     for (let i = 0; i < BRIEFING_LINES.length; i++) {
       if (cancelRef.current) break
-      setActiveIdx(i)
       const item = BRIEFING_LINES[i]
-      await speakAgentAsync(item.agent, item.line)
-      if (!cancelRef.current) await new Promise(r => setTimeout(r, 250))
+      const next = BRIEFING_LINES[i + 1]
+
+      setPhase('active')
+      setActiveIdx(i)
+
+      // Prefetch next agent's audio in parallel while current speaks
+      const prefetchNext = next ? fetchAudio(next.agent, next.line) : Promise.resolve(null)
+
+      if (cachedUrl) {
+        await playBlobUrl(cachedUrl)
+        cachedUrl = null
+      } else {
+        await speakAgentAsync(item.agent, item.line)
+      }
+
+      if (cancelRef.current) break
+
+      if (next) {
+        // Show "Passing to NEXT..." — await prefetch (should be ready by now)
+        setNextName(next.agent)
+        setNextColor(next.color)
+        setPhase('passing')
+        cachedUrl = await prefetchNext
+        await delay(520)
+      }
     }
-    if (!cancelRef.current) setDone(true)
-    setRunning(false)
-    setActiveIdx(-1)
+
+    if (!cancelRef.current) {
+      setPhase('done')
+      setActiveIdx(-1)
+    }
   }
 
   function handleSkip() {
     cancelRef.current = true
     clearVoiceQueue()
-    setRunning(false)
-    setActiveIdx(-1)
     onClose()
   }
 
@@ -232,11 +264,16 @@ function AgentBriefing({ onClose }) {
     return () => { cancelRef.current = true; clearVoiceQueue() }
   }, [])
 
-  const zones = [...new Set(BRIEFING_LINES.map(b => b.zone))]
+  const zones   = [...new Set(BRIEFING_LINES.map(b => b.zone))]
+  const active  = activeIdx >= 0 ? BRIEFING_LINES[activeIdx] : null
+  const isDone  = phase === 'done'
+  const prog    = activeIdx >= 0 ? Math.round((activeIdx + 1) / BRIEFING_LINES.length * 100) : 0
 
   return (
     <div className="brief-overlay">
       <div className="brief-modal">
+
+        {/* Header */}
         <div className="brief-header">
           <div className="brief-title">
             <span className="brief-title-dot" />
@@ -246,9 +283,53 @@ function AgentBriefing({ onClose }) {
           <div className="brief-subtitle">13 SPECIALISED AI ENTITIES · TARE SECURITY NETWORK</div>
         </div>
 
+        {/* Spotlight card */}
+        <div className="brief-spotlight">
+          {phase === 'starting' && (
+            <div className="brief-sys-start">
+              <div className="brief-sys-dot" /><div className="brief-sys-dot" /><div className="brief-sys-dot" />
+              <div className="brief-sys-label">SYSTEM BRIEFING INITIATED</div>
+              <div className="brief-sys-sub">All agents standing by</div>
+            </div>
+          )}
+
+          {(phase === 'active' || phase === 'passing') && active && (
+            <div
+              key={activeIdx}
+              className={`brief-card ${phase === 'passing' ? 'brief-card-exit' : 'brief-card-enter'}`}
+              style={{ '--agent-color': active.color }}
+            >
+              <div className="brief-card-glow" />
+              <div className="brief-card-icon">{active.icon}</div>
+              <div className="brief-card-name" style={{ color: active.color }}>{active.agent}</div>
+              <div className="brief-card-zone">{active.zone}</div>
+              {phase === 'active' && (
+                <div className="brief-card-bars"><span /><span /><span /><span /><span /></div>
+              )}
+            </div>
+          )}
+
+          {phase === 'passing' && (
+            <div className="brief-passing">
+              Passing to&nbsp;
+              <span style={{ color: nextColor, fontWeight: 700 }}>{nextName}</span>
+              <span className="brief-passing-dots"><span>.</span><span>.</span><span>.</span></span>
+            </div>
+          )}
+
+          {isDone && (
+            <div className="brief-done-card">
+              <div className="brief-done-check">✓</div>
+              <div className="brief-done-label">All agents briefed</div>
+              <div className="brief-done-sub">Ready to deploy</div>
+            </div>
+          )}
+        </div>
+
+        {/* Agent list */}
         <div className="brief-zones">
           {zones.map(zone => {
-            const zinfo = ZONE_LABELS[zone]
+            const zinfo  = ZONE_LABELS[zone]
             const agents = BRIEFING_LINES.filter(b => b.zone === zone)
             return (
               <div key={zone} className="brief-zone">
@@ -256,27 +337,27 @@ function AgentBriefing({ onClose }) {
                   {zinfo.label}
                 </div>
                 <div className="brief-zone-agents">
-                  {agents.map((item, _) => {
-                    const idx = BRIEFING_LINES.indexOf(item)
+                  {agents.map(item => {
+                    const idx      = BRIEFING_LINES.indexOf(item)
                     const isActive = idx === activeIdx
+                    const isPast   = idx < activeIdx || isDone
                     return (
                       <div
                         key={item.agent}
-                        className={`brief-agent ${isActive ? 'brief-agent-active' : ''} ${idx < activeIdx || done ? 'brief-agent-done' : ''}`}
+                        className={`brief-agent ${isActive ? 'brief-agent-active' : ''} ${isPast && !isActive ? 'brief-agent-done' : ''}`}
                         style={{ '--agent-color': item.color }}
                       >
                         <div className="brief-agent-icon">{item.icon}</div>
                         <div className="brief-agent-body">
                           <div className="brief-agent-name" style={{ color: item.color }}>{item.agent}</div>
-                          {isActive && (
-                            <div className="brief-agent-line">{item.line}</div>
-                          )}
-                          {!isActive && (idx < activeIdx || done) && (
-                            <div className="brief-agent-line brief-agent-line-done">{item.line}</div>
+                          {(isActive || isPast) && (
+                            <div className={`brief-agent-line ${isPast && !isActive ? 'brief-agent-line-done' : ''}`}>
+                              {item.line}
+                            </div>
                           )}
                         </div>
                         {isActive && <div className="brief-agent-speaking"><span /><span /><span /></div>}
-                        {(idx < activeIdx || done) && !isActive && <div className="brief-agent-check">✓</div>}
+                        {isPast && !isActive && <div className="brief-agent-check">✓</div>}
                       </div>
                     )
                   })}
@@ -286,17 +367,19 @@ function AgentBriefing({ onClose }) {
           })}
         </div>
 
+        {/* Footer */}
         <div className="brief-footer">
-          {running && (
+          {!isDone && phase !== 'starting' && (
             <div className="brief-progress">
-              <div className="brief-progress-fill" style={{ width: `${Math.round((activeIdx + 1) / BRIEFING_LINES.length * 100)}%` }} />
+              <div className="brief-progress-fill" style={{ width: `${prog}%` }} />
             </div>
           )}
-          {done && <div className="brief-done-msg">All agents briefed. Ready to deploy.</div>}
+          {isDone && <div className="brief-done-msg">All agents briefed. Ready to deploy.</div>}
           <button className="brief-skip" onClick={handleSkip}>
-            {done ? 'Close' : 'Skip'}
+            {isDone ? 'Close' : 'Skip'}
           </button>
         </div>
+
       </div>
     </div>
   )
